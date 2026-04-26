@@ -56,48 +56,48 @@ async function gerarRelatorioPNG() {
     const pctMeu = db.minhaParte || 60;
     
     let totalGeralServicos = 0;
-    let totalGeralVendas = 0;
+    let totalPendente = 0;
+
+    // IMPLEMENTAÇÃO IDEIA 1: Filtro de 7 dias para o PNG
+    const limiteData = new Date();
+    limiteData.setDate(limiteData.getDate() - 7);
     
     // Início da montagem do HTML do relatório
     let html = `
-        <div style="font-family: 'Inter', sans-serif; color: #1e293b; background: white;">
+        <div style="font-family: 'Inter', sans-serif; color: #1e293b; background: white; padding: 20px;">
             <div style="text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 15px;">
                 <h1 style="margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; color: #e11d48; letter-spacing: -1px;">Cliente Max</h1>
-                <p style="margin: 5px 0 0; font-size: 10px; font-weight: 800; color: #64748b; uppercase">Relatório de Fechamento: ${new Date().toLocaleDateString()}</p>
+                <p style="margin: 5px 0 0; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase">Fechamento Semanal: ${new Date().toLocaleDateString()}</p>
             </div>
             
             <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                 <thead>
                     <tr style="text-align: left; border-bottom: 1px solid #e2e8f0; color: #94a3b8;">
-                        <th style="padding: 8px 0; uppercase">Detalhes do Cliente</th>
-                        <th style="padding: 8px 0; text-align: right; uppercase">Valor</th>
+                        <th style="padding: 8px 0; text-transform: uppercase">Cliente / Status</th>
+                        <th style="padding: 8px 0; text-align: right; text-transform: uppercase">Valor</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-    // Percorre os atendimentos para listar e somar
-    db.atendimentos.forEach(atend => {
-        // Lógica para separar o que é serviço do que é produto no total do atendimento
-        // Como o app soma tudo no 'total', precisamos deduzir se houver produtos listados
-        // Para este relatório, vamos considerar o 'total' como base de serviços 
-        // e identificar os produtos visualmente.
-        
+    // Filtra os atendimentos dos últimos 7 dias para o relatório
+    const atendimentosFiltrados = db.atendimentos.filter(a => new Date(a.dataHora || 0) >= limiteData);
+
+    atendimentosFiltrados.forEach(atend => {
         let valorTotal = parseFloat(atend.total);
         totalGeralServicos += valorTotal;
+        if(atend.pendente) totalPendente += valorTotal;
 
         html += `
             <tr style="border-bottom: 1px solid #f8fafc;">
                 <td style="padding: 12px 0;">
                     <div style="font-weight: 900; text-transform: uppercase; font-size: 12px;">${atend.nome}</div>
-                    <div style="font-size: 9px; color: #64748b; font-weight: 600;">
-                        <i class="fas fa-cut"></i> ${atend.servicos.join(' + ')} 
-                        <span style="margin-left: 5px; color: #94a3b8;">[${atend.pagamento}]</span>
+                    <div style="font-size: 9px; color: ${atend.pendente ? '#e11d48' : '#64748b'}; font-weight: 700;">
+                        ${atend.pendente ? '⚠️ PENDENTE' : '✅ PAGO'} - Com: ${atend.recebedor || 'N/I'}
                     </div>
-                    ${atend.produtos && atend.produtos.length > 0 ? 
-                        `<div style="font-size: 9px; color: #3b82f6; font-weight: 800; margin-top: 2px;">
-                            <i class="fas fa-shopping-bag"></i> PRODUTOS: ${atend.produtos.join(', ')}
-                         </div>` : ''}
+                    <div style="font-size: 8px; color: #94a3b8; font-weight: 600; margin-top: 2px;">
+                        ${atend.servicos.join(' + ')} [${atend.pagamento}]
+                    </div>
                 </td>
                 <td style="padding: 12px 0; text-align: right; font-weight: 900; color: #1e293b; font-size: 13px;">
                     R$ ${valorTotal.toFixed(2)}
@@ -114,16 +114,16 @@ async function gerarRelatorioPNG() {
 
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 24px; border: 1px solid #f1f5f9;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Total em Serviços:</span>
+                    <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Total Bruto:</span>
                     <span style="font-size: 14px; font-weight: 900; color: #1e293b;">R$ ${totalGeralServicos.toFixed(2)}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; border-bottom: 2px dashed #e2e8f0; padding-bottom: 10px; margin-bottom: 10px;">
-                    <span style="font-size: 11px; font-weight: 800; color: #10b981; text-transform: uppercase;">Minha Porcentagem (${pctMeu}%):</span>
-                    <span style="font-size: 16px; font-weight: 900; color: #10b981;">R$ ${valorMinhaParte}</span>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #e11d48;">
+                    <span style="font-size: 11px; font-weight: 800; text-transform: uppercase;">Total Pendente:</span>
+                    <span style="font-size: 14px; font-weight: 900;">R$ ${totalPendente.toFixed(2)}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 11px; font-weight: 800; color: #3b82f6; text-transform: uppercase;">Vendas (Produtos):</span>
-                    <span style="font-size: 14px; font-weight: 900; color: #3b82f6;">R$ 0,00</span>
+                <div style="display: flex; justify-content: space-between; border-top: 2px dashed #e2e8f0; padding-top: 10px; margin-top: 5px;">
+                    <span style="font-size: 11px; font-weight: 800; color: #10b981; text-transform: uppercase;">Minha Parte (${pctMeu}%):</span>
+                    <span style="font-size: 18px; font-weight: 900; color: #10b981;">R$ ${valorMinhaParte}</span>
                 </div>
             </div>
             
@@ -136,7 +136,7 @@ async function gerarRelatorioPNG() {
     try {
         const canvas = await html2canvas(container, {
             backgroundColor: "#ffffff",
-            scale: 3, // Alta qualidade para leitura no WhatsApp
+            scale: 3, 
             logging: false,
             useCORS: true
         });

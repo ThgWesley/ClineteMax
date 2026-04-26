@@ -4,23 +4,106 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Barber Pro Elite - Topind!ca</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/ClienteMax/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BarberPro">
+    <link rel="apple-touch-icon" href="/ClienteMax/icon-192.png">
+    <meta name="theme-color" content="#e11d48">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="description" content="Gestão completa para barbearias - Agendamentos, clientes, produtos e dashboards">
+    
+    <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Estilos Locais -->
     <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        /* Estilos para a notificação de instalação do PWA */
+        #install-banner {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            z-index: 200;
+            animation: slideUp 0.3s ease;
+        }
+        
+        #install-banner.show {
+            display: block;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        /* Indicador de status offline */
+        #offline-indicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #f59e0b;
+            color: white;
+            text-align: center;
+            padding: 4px;
+            font-size: 11px;
+            font-weight: 800;
+            z-index: 300;
+            text-transform: uppercase;
+        }
+        
+        #offline-indicator.show {
+            display: block;
+        }
+    </style>
 </head>
 <body>
+    <!-- Indicador Offline -->
+    <div id="offline-indicator">📱 Modo Offline - Dados salvos localmente</div>
+    
+    <!-- Banner de Instalação -->
+    <div id="install-banner">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="font-black text-sm uppercase text-slate-800">Instalar App</p>
+                <p class="text-[10px] text-slate-500 font-bold">Adicione à tela inicial para acesso rápido</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="dismissInstall()" class="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Agora não</button>
+                <button id="install-btn" onclick="installPWA()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase">Instalar</button>
+            </div>
+        </div>
+    </div>
+
     <header class="bg-white p-6 shadow-sm sticky top-0 z-50">
         <div class="flex justify-between items-center mb-6">
             <div>
                 <h1 id="page-title" class="text-2xl font-black italic tracking-tighter text-slate-900 uppercase">Lista Semanal</h1>
                 <p id="data-topo" class="text-[10px] font-bold text-rose-500 uppercase tracking-widest"></p>
             </div>
-            <button onclick="abrirModal(true)" class="bg-slate-900 text-white w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform">
-                <i class="fas fa-plus"></i>
-            </button>
+            <div class="flex gap-2">
+                <button onclick="checkForUpdates()" id="update-btn" class="bg-emerald-50 text-emerald-700 w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform hidden">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button onclick="abrirModal(true)" class="bg-slate-900 text-white w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
         </div>
         
         <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
@@ -101,6 +184,18 @@
                 </button>
                 <input type="file" id="importFile" onchange="importarBackup(event)" class="hidden" accept=".json">
             </div>
+            
+            <!-- Status do PWA -->
+            <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 class="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest text-center italic">Status do App</h3>
+                <div class="text-center space-y-2">
+                    <p id="pwa-status" class="text-[10px] font-bold uppercase text-slate-500">Verificando...</p>
+                    <div class="flex justify-center gap-2">
+                        <button onclick="testarNotificacao()" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-[10px] font-black uppercase">Testar Notificação</button>
+                        <button onclick="limparCache()" class="px-4 py-2 bg-amber-50 text-amber-700 rounded-xl text-[10px] font-black uppercase">Limpar Cache</button>
+                    </div>
+                </div>
+            </div>
         </section>
     </main>
 
@@ -117,7 +212,189 @@
         </div>
     </div>
 
+    <!-- Scripts da Aplicação -->
     <script src="js/app.js"></script>
     <script src="js/utils.js"></script>
+    
+    <!-- Script PWA -->
+    <script>
+        // Variáveis para instalação do PWA
+        let deferredPrompt;
+        let installBanner = document.getElementById('install-banner');
+        let updateButton = document.getElementById('update-btn');
+        let registration;
+
+        // Registro do Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/ClienteMax/js/service-worker.js')
+                    .then(reg => {
+                        registration = reg;
+                        console.log('✅ Service Worker registrado:', reg.scope);
+                        
+                        // Verifica updates
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    updateButton.classList.remove('hidden');
+                                    console.log('🔄 Nova versão disponível!');
+                                }
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.log('❌ Erro no Service Worker:', error);
+                    });
+            });
+        }
+
+        // Detecta se pode ser instalado
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBanner.classList.add('show');
+        });
+
+        // Detecta quando foi instalado
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ App instalado com sucesso!');
+            installBanner.classList.remove('show');
+            deferredPrompt = null;
+        });
+
+        // Funções do PWA
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(choiceResult => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('👍 Usuário instalou o app');
+                    }
+                    deferredPrompt = null;
+                    installBanner.classList.remove('show');
+                });
+            }
+        }
+
+        function dismissInstall() {
+            installBanner.classList.remove('show');
+        }
+
+        function checkForUpdates() {
+            if (registration) {
+                registration.update();
+                updateButton.classList.add('hidden');
+                alert('Verificando atualizações... Recarregue a página se disponível.');
+            }
+        }
+
+        function limparCache() {
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                });
+                alert('✅ Cache limpo! O app será recarregado.');
+                setTimeout(() => location.reload(), 500);
+            }
+        }
+
+        function testarNotificacao() {
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        navigator.serviceWorker.ready.then(reg => {
+                            reg.showNotification('Barber Pro Elite ✂️', {
+                                body: 'Notificações funcionando perfeitamente!',
+                                icon: '/ClienteMax/icon-192.png',
+                                badge: '/ClienteMax/icon-192.png',
+                                vibrate: [200, 100, 200]
+                            });
+                        });
+                    }
+                });
+            } else {
+                alert('Notificações não suportadas neste navegador');
+            }
+        }
+
+        // Monitor de conectividade
+        function updateOnlineStatus() {
+            const indicator = document.getElementById('offline-indicator');
+            if (navigator.onLine) {
+                indicator.classList.remove('show');
+                console.log('🟢 Online');
+            } else {
+                indicator.classList.add('show');
+                console.log('🔴 Offline');
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        
+        // Status inicial
+        updateOnlineStatus();
+
+        // Atualiza status do PWA no painel de ajustes
+        function atualizarStatusPWA() {
+            const statusElement = document.getElementById('pwa-status');
+            if (statusElement) {
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+                const isInstalled = window.matchMedia('(display-mode: standalone)').matches || 
+                                   navigator.standalone || 
+                                   document.referrer.includes('android-app://');
+                
+                if (isInstalled) {
+                    statusElement.textContent = '✅ App Instalado - Modo Nativo';
+                    statusElement.className = 'text-[10px] font-black uppercase text-emerald-500';
+                } else if (navigator.onLine) {
+                    statusElement.textContent = '🌐 Modo Navegador Online';
+                    statusElement.className = 'text-[10px] font-black uppercase text-blue-500';
+                } else {
+                    statusElement.textContent = '📱 Modo Offline';
+                    statusElement.className = 'text-[10px] font-black uppercase text-amber-500';
+                }
+            }
+        }
+
+        // Monitora mudanças no modo de exibição
+        window.matchMedia('(display-mode: standalone)').addEventListener('change', atualizarStatusPWA);
+        
+        // Atualiza a cada 5 segundos
+        setInterval(atualizarStatusPWA, 5000);
+        document.addEventListener('DOMContentLoaded', atualizarStatusPWA);
+
+        // Adiciona gestos de navegação
+        let touchStartX = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            const touchEndX = e.changedTouches[0].clientX;
+            const diff = touchStartX - touchEndX;
+            
+            if (Math.abs(diff) > 80) {
+                const abas = ['semanal', 'clientes', 'produtos', 'ajustes'];
+                const currentIndex = abas.indexOf(abaAtual);
+                
+                if (diff > 0 && currentIndex < abas.length - 1) {
+                    // Swipe esquerda - próxima aba
+                    const nextAba = abas[currentIndex + 1];
+                    const nextBtn = document.getElementById(`nav-${nextAba}`);
+                    mudarAba(nextAba, nextBtn);
+                } else if (diff < 0 && currentIndex > 0) {
+                    // Swipe direita - aba anterior
+                    const prevAba = abas[currentIndex - 1];
+                    const prevBtn = document.getElementById(`nav-${prevAba}`);
+                    mudarAba(prevAba, prevBtn);
+                }
+            }
+        });
+
+        console.log('🚀 Barber Pro Elite PWA inicializado com sucesso!');
+        console.log('✂️ Pronto para instalação na tela inicial');
+    </script>
 </body>
 </html>

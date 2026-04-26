@@ -48,10 +48,15 @@ function renderSemana() {
     const container = document.getElementById('tab-semanal');
     container.innerHTML = '';
     let faturamentoTotal = 0;
+
+    const limiteData = new Date();
+    limiteData.setDate(limiteData.getDate() - 7);
+
     ordem.forEach(idx => {
-        const atends = db.atendimentos.filter(a => a.diaIndex === idx);
+        const atends = db.atendimentos.filter(a => a.diaIndex === idx && new Date(a.dataHora || 0) >= limiteData);
         const totalDia = atends.reduce((acc, a) => acc + parseFloat(a.total), 0);
         faturamentoTotal += totalDia;
+        
         container.innerHTML += `
             <button onclick="toggleDia(${idx})" class="dia-btn">
                 <span>${dias[idx].toUpperCase()}</span>
@@ -59,23 +64,39 @@ function renderSemana() {
             </button>
             <div id="lista-dia-${idx}" class="lista-atendimentos ${idx === hoje ? 'aberta' : ''}">
                 ${atends.map((a, i_orig) => `
-                    <div class="card-atendimento">
+                    <div class="card-atendimento ${a.pendente ? 'border-l-4 border-rose-500' : ''}">
                         <div>
-                            <p class="font-black text-xs uppercase">${a.nome}</p>
+                            <p class="font-black text-xs uppercase">${a.nome} ${a.pendente ? '<span class="text-rose-600 text-[8px]">[PENDENTE]</span>' : ''}</p>
                             <p class="text-[9px] text-slate-400 font-bold uppercase">${a.servicos.join(' + ')}</p>
+                            <p class="text-[8px] text-slate-400 italic">${a.pendente ? 'Dinheiro com: ' : 'Recebido por: '} ${a.recebedor || 'N/I'}</p>
                             ${a.produtos && a.produtos.length > 0 ? `<p class="text-[9px] text-blue-500 font-black mt-1">PRODUTOS: ${a.produtos.join(', ')}</p>` : ''}
                         </div>
                         <div class="text-right">
                             <p class="text-sm font-black text-rose-600">R$ ${a.total}</p>
-                            <p class="text-[9px] font-bold text-slate-500 uppercase">${a.pagamento || ''}</p> 
+                            <p class="text-[9px] font-bold text-slate-500 uppercase">${a.pendente ? '' : (a.pagamento || '')}</p> 
                             <button onclick="removerAtend(${db.atendimentos.indexOf(a)})" class="text-[8px] font-bold text-slate-300 uppercase">Remover</button>
                         </div>
                     </div>
-                `).join('') || '<p class="text-center text-slate-300 text-[10px] py-4 font-bold">SEM REGISTROS</p>'}
+                `).join('') || '<p class="text-center text-slate-300 text-[10px] py-4 font-bold">SEM REGISTROS RECENTES</p>'}
             </div>
         `;
     });
     document.getElementById('total-semanal').innerText = `R$ ${faturamentoTotal.toFixed(2)}`;
+}
+
+// NOVA FUNÇÃO AUXILIAR PARA O FORMULÁRIO DINÂMICO
+function toggleCamposPagamento() {
+    const isPendente = document.getElementById('m-pendente').checked;
+    const campoPg = document.getElementById('wrapper-pg');
+    const campoRecebedor = document.getElementById('m-recebedor');
+
+    if (isPendente) {
+        campoPg.classList.add('hidden');
+        campoRecebedor.classList.remove('hidden');
+    } else {
+        campoPg.classList.remove('hidden');
+        campoRecebedor.classList.add('hidden');
+    }
 }
 
 function abrirModal(ehNovo = true) {
@@ -109,7 +130,41 @@ function abrirModal(ehNovo = true) {
                 `).join('')}
             </div>`;
         }
-        container.innerHTML = `<input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente"><datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist><p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p><div class="grid grid-cols-2 gap-2"><input type="checkbox" id="s-c" name="serv" value="Corte" class="service-chip"><label for="s-c" class="service-label">CORTE</label><input type="checkbox" id="s-b" name="serv" value="Barba" class="service-chip"><label for="s-b" class="service-label">BARBA</label></div><p class="text-[10px] font-black uppercase text-slate-400 mt-4 mb-2">Extras</p><div class="grid grid-cols-2 gap-2">${Object.keys(EXTRAS_LISTA).map((e,i)=>`<input type="checkbox" id="e-${i}" name="serv" value="${e}" class="service-chip"><label for="e-${i}" class="service-label">${e.toUpperCase()}</label>`).join('')}</div>${htmlProds}<div class="flex gap-2 mt-4"><select id="m-pg"><option>Pix</option><option>Dinheiro</option><option>Cartão</option></select><input type="number" id="m-desc" placeholder="Desconto R$"></div>`;
+
+        container.innerHTML = `
+            <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente">
+            <datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist>
+            
+            <p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p>
+            <div class="grid grid-cols-2 gap-2">
+                <input type="checkbox" id="s-c" name="serv" value="Corte" class="service-chip">
+                <label for="s-c" class="service-label">CORTE</label>
+                <input type="checkbox" id="s-b" name="serv" value="Barba" class="service-chip">
+                <label for="s-b" class="service-label">BARBA</label>
+            </div>
+            
+            <p class="text-[10px] font-black uppercase text-slate-400 mt-4 mb-2">Extras</p>
+            <div class="grid grid-cols-2 gap-2">
+                ${Object.keys(EXTRAS_LISTA).map((e,i)=>`<input type="checkbox" id="e-${i}" name="serv" value="${e}" class="service-chip"><label for="e-${i}" class="service-label">${e.toUpperCase()}</label>`).join('')}
+            </div>
+            
+            ${htmlProds}
+            
+            <p class="text-[10px] font-black uppercase text-slate-400 mt-4 mb-2">Pagamento</p>
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl mb-1">
+                    <input type="checkbox" id="m-pendente" onchange="toggleCamposPagamento()" class="w-4 h-4">
+                    <label for="m-pendente" class="text-[10px] font-black uppercase text-rose-500">Pagamento Pendente</label>
+                </div>
+                
+                <div id="wrapper-pg" class="flex gap-2">
+                    <select id="m-pg" class="flex-1"><option>Pix</option><option>Dinheiro</option><option>Cartão</option></select>
+                    <input type="number" id="m-desc" placeholder="Desconto R$" class="w-24">
+                </div>
+                
+                <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full hidden">
+            </div>
+            <input type="number" id="m-total-manual" placeholder="Total Final R$" class="mt-4 font-black text-rose-600">`;
     }
 }
 
@@ -122,7 +177,6 @@ async function salvarDados() {
         const tags = document.getElementById('m-tags').value;
         let fotoFinal = itemSendoEditado !== null ? db.clientes[itemSendoEditado].foto : '';
         
-        // Aplicação da mudança para otimização de imagem
         if (croppieInstance) {
             fotoFinal = await croppieInstance.result({ 
                 type: 'base64', 
@@ -148,7 +202,6 @@ async function salvarDados() {
         const emoji = document.getElementById('p-emoji').value;
         let fotoFinal = itemSendoEditado !== null ? db.produtos[itemSendoEditado].foto : (emoji || '');
         
-        // Aplicação da mudança para otimização de imagem também em produtos
         if (croppieInstance) {
             fotoFinal = await croppieInstance.result({ 
                 type: 'base64', 
@@ -172,8 +225,12 @@ async function salvarDados() {
         const nome = document.getElementById('m-nome-sem').value;
         const sel = Array.from(document.querySelectorAll('input[name="serv"]:checked')).map(i => i.value);
         const prodsChecked = Array.from(document.querySelectorAll('input[name="prod"]:checked'));
-        const desc = parseFloat(document.getElementById('m-desc').value) || 0;
-        const pgtoRaw = document.getElementById('m-pg').value;
+        const desc = parseFloat(document.getElementById('m-desc')?.value) || 0;
+        const pgtoRaw = document.getElementById('m-pg')?.value;
+        const pendente = document.getElementById('m-pendente').checked;
+        const recebedor = document.getElementById('m-recebedor').value || "Não informado";
+        const totalManual = document.getElementById('m-total-manual').value;
+
         let precoBase = (diaIdx >= 1 && diaIdx <= 3) ? 30 : 35;
         let totalServ = sel.reduce((acc, s) => acc + ((s==='Corte'||s==='Barba') ? precoBase : (EXTRAS_LISTA[s]||0)), 0);
         let totalProd = 0; let pResumo = [];
@@ -184,9 +241,21 @@ async function salvarDados() {
             totalProd += pr * q; pResumo.push(`${q}x ${p.value}`);
         });
         
-        let total = (totalServ + totalProd) - desc;
+        let totalCalculado = (totalServ + totalProd) - desc;
+        let totalFinal = totalManual ? parseFloat(totalManual).toFixed(2) : totalCalculado.toFixed(2);
+
         if (nome) {
-            db.atendimentos.push({ nome, servicos: sel, produtos: pResumo, total: total.toFixed(2), diaIndex: diaIdx, pagamento: pgtoRaw });
+            db.atendimentos.push({ 
+                nome, 
+                servicos: sel, 
+                produtos: pResumo, 
+                total: totalFinal, 
+                diaIndex: diaIdx, 
+                dataHora: new Date().toISOString(),
+                pagamento: pendente ? "PENDENTE" : pgtoRaw,
+                pendente: pendente,
+                recebedor: recebedor 
+            });
             localStorage.setItem('barber_v6', JSON.stringify(db));
             fecharModal(); renderSemana();
         }
