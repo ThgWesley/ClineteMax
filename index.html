@@ -6,11 +6,11 @@
     <title>Barber Pro Elite - Topind!ca</title>
     
     <!-- PWA Meta Tags -->
-    <link rel="manifest" href="/ClienteMax/manifest.json">
+    <link rel="manifest" href="/ClineteMax/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="BarberPro">
-    <link rel="apple-touch-icon" href="/ClienteMax/icon-192.png">
+    <link rel="apple-touch-icon" href="/ClineteMax/icon-192.png">
     <meta name="theme-color" content="#e11d48">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="description" content="Gestão completa para barbearias - Agendamentos, clientes, produtos e dashboards">
@@ -227,7 +227,7 @@
         // Registro do Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/ClienteMax/js/service-worker.js')
+                navigator.serviceWorker.register('/ClineteMax/js/service-worker.js')
                     .then(reg => {
                         registration = reg;
                         console.log('✅ Service Worker registrado:', reg.scope);
@@ -306,8 +306,8 @@
                         navigator.serviceWorker.ready.then(reg => {
                             reg.showNotification('Barber Pro Elite ✂️', {
                                 body: 'Notificações funcionando perfeitamente!',
-                                icon: '/ClienteMax/icon-192.png',
-                                badge: '/ClienteMax/icon-192.png',
+                                icon: '/ClineteMax/icon-192.png',
+                                badge: '/ClineteMax/icon-192.png',
                                 vibrate: [200, 100, 200]
                             });
                         });
