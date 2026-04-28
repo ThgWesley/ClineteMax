@@ -4,7 +4,7 @@ let croppieInstance = null;
 let itemSendoEditado = null;
 
 const EXTRAS_LISTA = { "Sobrancelha": 10, "Limpeza": 15, "Pezinho": 10, "Botox": 100 };
-const CICLO_FIDELIDADE = 5; // Número de atendimentos por ciclo
+const CICLO_FIDELIDADE = 5;
 const dataAtual = new Date();
 document.getElementById('data-topo').innerText = dataAtual.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -55,7 +55,7 @@ function renderSemana() {
 
     ordem.forEach(idx => {
         const atends = db.atendimentos.filter(a => a.diaIndex === idx && new Date(a.dataHora || 0) >= limiteData);
-        const totalDia = atends.reduce((acc, a) => acc + parseFloat(a.total), 0);
+        const totalDia = atends.reduce((acc, a) => acc + parseFloat(a.total || 0), 0);
         faturamentoTotal += totalDia;
         
         container.innerHTML += `
@@ -66,17 +66,35 @@ function renderSemana() {
             <div id="lista-dia-${idx}" class="lista-atendimentos ${idx === hoje ? 'aberta' : ''}">
                 ${atends.map((a) => {
                     const idxOriginal = db.atendimentos.indexOf(a);
+                    
+                    // Calcula total de produtos com preços atuais
+                    let totalProdutos = 0;
+                    let produtosExibicao = [];
+                    if (a.produtos && a.produtos.length > 0) {
+                        a.produtos.forEach(p => {
+                            const produtoAtual = db.produtos.find(prod => prod.nome === p.nome);
+                            const preco = produtoAtual ? parseFloat(produtoAtual.valor || 0) : 0;
+                            const subtotal = preco * p.qtd;
+                            totalProdutos += subtotal;
+                            produtosExibicao.push(`${p.qtd}x ${p.nome}`);
+                        });
+                    }
+                    
+                    // Total de serviços (sem produtos)
+                    const totalServicos = parseFloat(a.total || 0) - totalProdutos - parseFloat(a.gorjeta || 0);
+                    
                     return `
                     <div class="card-atendimento ${a.pendente ? 'border-l-4 border-rose-500' : ''}">
                         <div>
                             <p class="font-black text-xs uppercase">${a.nome} ${a.pendente ? '<span class="text-rose-600 text-[8px]">[PENDENTE]</span>' : ''}</p>
                             <p class="text-[9px] text-slate-400 font-bold uppercase">${a.servicos.join(' + ')}</p>
+                            ${a.desconto > 0 ? `<p class="text-[8px] text-rose-400 font-bold">Desconto: -R$ ${parseFloat(a.desconto).toFixed(2)}</p>` : ''}
                             <p class="text-[8px] text-slate-400 italic">${a.pendente ? 'Dinheiro com: ' : 'Recebido por: '} ${a.recebedor || 'N/I'}</p>
-                            ${a.produtos && a.produtos.length > 0 ? `<p class="text-[9px] text-blue-500 font-black mt-1">PRODUTOS: ${a.produtos.join(', ')}</p>` : ''}
+                            ${produtosExibicao.length > 0 ? `<p class="text-[9px] text-blue-500 font-black mt-1">🛍️ ${produtosExibicao.join(', ')}: R$ ${totalProdutos.toFixed(2)}</p>` : ''}
                             ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-black mt-1">💵 GORJETA: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
                         </div>
                         <div class="text-right">
-                            <p class="text-sm font-black text-rose-600">R$ ${a.total}</p>
+                            <p class="text-sm font-black text-rose-600">R$ ${parseFloat(a.total).toFixed(2)}</p>
                             <p class="text-[9px] font-bold text-slate-500 uppercase">${a.pendente ? '' : (a.pagamento || '')}</p>
                             <div class="flex gap-2 justify-end mt-1">
                                 <button onclick="editarAtendimento(${idxOriginal})" class="text-[8px] font-bold text-blue-400 uppercase">Editar</button>
@@ -100,22 +118,26 @@ function editarAtendimento(idx) {
     document.getElementById('btn-confirmar').style.display = '';
     
     const container = document.getElementById('campos-dinamicos');
+    
+    // Busca foto do cliente
+    const cliente = db.clientes.find(c => c.nome.toLowerCase() === atend.nome.toLowerCase());
+    const fotoCliente = cliente?.foto || '';
+    
     let htmlProds = '';
     if (db.produtos && db.produtos.length > 0) {
         htmlProds = `<p class="text-[10px] font-black uppercase text-blue-500 mt-4 mb-2">Produtos Vendidos</p>
         <div class="grid grid-cols-3 gap-2">
             ${db.produtos.map((p, i) => {
-                const produtoNoAtend = atend.produtos ? atend.produtos.find(pr => pr.includes(p.nome)) : null;
+                const produtoNoAtend = atend.produtos ? atend.produtos.find(pr => pr.nome === p.nome) : null;
                 let qty = 1;
                 let checked = '';
                 if (produtoNoAtend) {
                     checked = 'checked';
-                    const match = produtoNoAtend.match(/^(\d+)x/);
-                    if (match) qty = match[1];
+                    qty = produtoNoAtend.qtd;
                 }
                 return `
                 <div class="flex flex-col">
-                    <input type="checkbox" id="prod-${i}" name="prod" value="${p.nome}" data-price="${p.valor || 0}" class="service-chip" ${checked}>
+                    <input type="checkbox" id="prod-${i}" name="prod" value="${p.nome}" class="service-chip" ${checked}>
                     <label for="prod-${i}" class="service-label">${p.nome.toUpperCase()}</label>
                     <div class="qty-wrapper" style="${checked ? 'display:flex' : ''}">
                         <input type="number" id="qty-prod-${i}" value="${qty}" min="1" class="qty-input">
@@ -131,7 +153,13 @@ function editarAtendimento(idx) {
     });
 
     container.innerHTML = `
-        <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" value="${atend.nome}">
+        <div class="flex items-center gap-3 mb-4">
+            ${fotoCliente ? `<img src="${fotoCliente}" class="w-12 h-12 rounded-full object-cover border-2 border-rose-200">` : '<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>'}
+            <div class="flex-1">
+                <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" value="${atend.nome}" onkeyup="filtrarClientesDropdown(this.value)" onfocus="filtrarClientesDropdown(this.value)" class="font-black text-sm">
+                <div id="dropdown-clientes" class="hidden absolute z-50 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto w-full mt-1"></div>
+            </div>
+        </div>
         <datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist>
         
         <p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p>
@@ -165,7 +193,7 @@ function editarAtendimento(idx) {
                     <option ${atend.pagamento === 'Dinheiro' ? 'selected' : ''}>Dinheiro</option>
                     <option ${atend.pagamento === 'Cartão' ? 'selected' : ''}>Cartão</option>
                 </select>
-                <input type="number" id="m-desc" placeholder="Desconto R$" class="w-24" value="0">
+                <input type="number" id="m-desc" placeholder="Desconto R$" class="w-24" value="${atend.desconto || 0}">
             </div>
             
             <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full ${atend.pendente ? '' : 'hidden'}" value="${atend.recebedor || ''}">
@@ -177,7 +205,7 @@ function editarAtendimento(idx) {
             <p class="text-[8px] text-amber-500 font-bold mt-1">Este valor é 100% seu, não divide com a loja</p>
         </div>
         
-        <input type="number" id="m-total-manual" placeholder="Total Final R$" class="mt-4 font-black text-rose-600" value="${atend.totalManual || atend.total}">`;
+        <input type="number" id="m-total-manual" placeholder="Total Final R$ (opcional)" class="mt-4 font-black text-rose-600" value="${atend.totalManual || ''}">`;
     
     setTimeout(() => {
         toggleCamposPagamento();
@@ -195,6 +223,60 @@ function toggleCamposPagamento() {
     } else {
         if (campoPg) campoPg.classList.remove('hidden');
         if (campoRecebedor) campoRecebedor.classList.add('hidden');
+    }
+}
+
+// Dropdown de clientes com foto
+function filtrarClientesDropdown(termo) {
+    const dropdown = document.getElementById('dropdown-clientes');
+    if (!dropdown) return;
+    
+    if (!termo || termo.trim().length < 1) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+    
+    const filtrados = db.clientes.filter(c => c.nome.toLowerCase().includes(termo.toLowerCase()));
+    
+    if (filtrados.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+    
+    dropdown.innerHTML = filtrados.map(c => {
+        const ultimoAtend = db.atendimentos.filter(a => a.nome.toLowerCase() === c.nome.toLowerCase()).sort((a,b) => new Date(b.dataHora) - new Date(a.dataHora))[0];
+        const ultimoTexto = ultimoAtend ? `${ultimoAtend.servicos.join(' + ')} (${new Date(ultimoAtend.dataHora).toLocaleDateString('pt-BR', {day:'2-digit', month:'short'})})` : 'Nenhum atendimento';
+        
+        return `
+        <div onclick="selecionarClienteDropdown('${c.nome.replace(/'/g, "\\'")}')" class="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
+            ${c.foto ? `<img src="${c.foto}" class="w-10 h-10 rounded-full object-cover">` : '<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>'}
+            <div>
+                <p class="font-black text-xs uppercase">${c.nome}</p>
+                <p class="text-[8px] text-slate-400 font-bold">Último: ${ultimoTexto}</p>
+            </div>
+        </div>`;
+    }).join('');
+    
+    dropdown.classList.remove('hidden');
+}
+
+function selecionarClienteDropdown(nome) {
+    const inputNome = document.getElementById('m-nome-sem');
+    const dropdown = document.getElementById('dropdown-clientes');
+    
+    if (inputNome) inputNome.value = nome;
+    if (dropdown) dropdown.classList.add('hidden');
+    
+    // Busca foto do cliente e exibe
+    const cliente = db.clientes.find(c => c.nome === nome);
+    const fotoContainer = document.getElementById('foto-cliente-preview');
+    
+    if (fotoContainer) {
+        if (cliente?.foto) {
+            fotoContainer.innerHTML = `<img src="${cliente.foto}" class="w-12 h-12 rounded-full object-cover border-2 border-rose-200">`;
+        } else {
+            fotoContainer.innerHTML = '<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>';
+        }
     }
 }
 
@@ -217,13 +299,14 @@ function abrirModal(ehNovo = true) {
     } else {
         document.getElementById('modal-title').innerText = "Novo Registro";
         btnConfirmar.innerText = "Confirmar";
+        
         let htmlProds = '';
         if (db.produtos && db.produtos.length > 0) {
             htmlProds = `<p class="text-[10px] font-black uppercase text-blue-500 mt-4 mb-2">Produtos Vendidos</p>
             <div class="grid grid-cols-3 gap-2">
                 ${db.produtos.map((p, i) => `
                     <div class="flex flex-col">
-                        <input type="checkbox" id="prod-${i}" name="prod" value="${p.nome}" data-price="${p.valor || 0}" class="service-chip">
+                        <input type="checkbox" id="prod-${i}" name="prod" value="${p.nome}" class="service-chip">
                         <label for="prod-${i}" class="service-label">${p.nome.toUpperCase()}</label>
                         <div class="qty-wrapper"><input type="number" id="qty-prod-${i}" value="1" min="1" class="qty-input"></div>
                     </div>
@@ -232,7 +315,15 @@ function abrirModal(ehNovo = true) {
         }
 
         container.innerHTML = `
-            <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente">
+            <div class="flex items-center gap-3 mb-4">
+                <div id="foto-cliente-preview" class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="flex-1 relative">
+                    <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" onkeyup="filtrarClientesDropdown(this.value)" onfocus="filtrarClientesDropdown(this.value)" class="font-black text-sm">
+                    <div id="dropdown-clientes" class="hidden absolute z-50 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto w-full mt-1"></div>
+                </div>
+            </div>
             <datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist>
             
             <p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p>
@@ -259,7 +350,7 @@ function abrirModal(ehNovo = true) {
                 
                 <div id="wrapper-pg" class="flex gap-2">
                     <select id="m-pg" class="flex-1"><option>Pix</option><option>Dinheiro</option><option>Cartão</option></select>
-                    <input type="number" id="m-desc" placeholder="Desconto R$" class="w-24">
+                    <input type="number" id="m-desc" placeholder="Desconto R$" class="w-24" value="0">
                 </div>
                 
                 <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full hidden">
@@ -271,8 +362,23 @@ function abrirModal(ehNovo = true) {
                 <p class="text-[8px] text-amber-500 font-bold mt-1">Este valor é 100% seu, não divide com a loja</p>
             </div>
             
-            <input type="number" id="m-total-manual" placeholder="Total Final R$" class="mt-4 font-black text-rose-600">`;
+            <input type="number" id="m-total-manual" placeholder="Total Final R$ (opcional)" class="mt-4 font-black text-rose-600">`;
     }
+}
+
+// Botão novo atendimento do perfil
+function novoAtendimentoDoCliente(nomeCliente) {
+    abrirModal(true);
+    abaAtual = 'semanal';
+    
+    setTimeout(() => {
+        const inputNome = document.getElementById('m-nome-sem');
+        if (inputNome) {
+            inputNome.value = nomeCliente;
+            selecionarClienteDropdown(nomeCliente);
+        }
+        document.getElementById('modal-title').innerText = "Novo Atendimento";
+    }, 100);
 }
 
 async function salvarDados() {
@@ -337,7 +443,6 @@ async function salvarDados() {
         const totalManual = document.getElementById('m-total-manual')?.value;
         const gorjeta = parseFloat(document.getElementById('m-gorjeta')?.value) || 0;
 
-        // Preserva o dia original se for edição
         let diaIdx;
         let dataHora;
         
@@ -351,22 +456,26 @@ async function salvarDados() {
 
         let precoBase = (diaIdx >= 1 && diaIdx <= 3) ? 30 : 35;
         let totalServ = sel.reduce((acc, s) => acc + ((s==='Corte'||s==='Barba') ? precoBase : (EXTRAS_LISTA[s]||0)), 0);
-        let totalProd = 0; let pResumo = [];
         
+        // Produtos: salva apenas nome e qtd, sem preço
+        let produtosSalvos = [];
+        let totalProd = 0;
         prodsChecked.forEach(p => {
-            const pr = parseFloat(p.getAttribute('data-price')) || 0;
             const q = parseInt(document.getElementById(`qty-prod-${p.id.split('-')[1]}`)?.value) || 1;
-            totalProd += pr * q; pResumo.push(`${q}x ${p.value}`);
+            const produtoAtual = db.produtos.find(prod => prod.nome === p.value);
+            const preco = produtoAtual ? parseFloat(produtoAtual.valor || 0) : 0;
+            totalProd += preco * q;
+            produtosSalvos.push({ nome: p.value, qtd: q });
         });
         
-        let totalCalculado = (totalServ + totalProd) - desc;
+        let totalCalculado = totalServ + totalProd - desc + gorjeta;
         let totalFinal = totalManual ? parseFloat(totalManual).toFixed(2) : totalCalculado.toFixed(2);
 
         if (nome) {
             const atendimento = { 
                 nome, 
                 servicos: sel, 
-                produtos: pResumo, 
+                produtos: produtosSalvos,
                 total: totalFinal, 
                 diaIndex: diaIdx,
                 dataHora: dataHora,
@@ -374,6 +483,7 @@ async function salvarDados() {
                 pendente: pendente,
                 recebedor: recebedor,
                 gorjeta: gorjeta,
+                desconto: desc,
                 totalManual: totalManual || ''
             };
             
@@ -458,10 +568,6 @@ function prepararEdicao(i) {
 
 function excluirCliente(i) { if(confirm('Excluir?')) { db.clientes.splice(i, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderClientes(); } }
 
-// ==========================================
-// HISTÓRICO DO CLIENTE COM CICLOS DE FIDELIDADE
-// ==========================================
-
 function verHistorico(nomeCliente) {
     const atendimentosDoCliente = db.atendimentos
         .filter(a => a.nome.toLowerCase() === nomeCliente.toLowerCase())
@@ -479,11 +585,14 @@ function verHistorico(nomeCliente) {
             <div class="text-center py-8">
                 <p class="text-[12px] font-black uppercase text-slate-300">Nenhum atendimento encontrado</p>
                 <p class="text-[10px] text-slate-400 mt-2">Os atendimentos aparecerão aqui quando registrados</p>
+                <button onclick="novoAtendimentoDoCliente('${nomeCliente.replace(/'/g, "\\'")}')" class="mt-4 bg-rose-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase active:scale-95 transition-transform">
+                    ✂️ Novo Atendimento
+                </button>
             </div>`;
         return;
     }
     
-    const totalGasto = atendimentosDoCliente.reduce((acc, a) => acc + parseFloat(a.total), 0);
+    const totalGasto = atendimentosDoCliente.reduce((acc, a) => acc + parseFloat(a.total || 0), 0);
     const totalAtendimentos = atendimentosDoCliente.length;
     const servicosFavoritos = {};
     atendimentosDoCliente.forEach(a => {
@@ -493,7 +602,6 @@ function verHistorico(nomeCliente) {
     });
     const servicoTop = Object.entries(servicosFavoritos).sort((a,b) => b[1] - a[1])[0];
     
-    // Cálculo dos ciclos de fidelidade
     const ciclosCompletos = Math.floor(totalAtendimentos / CICLO_FIDELIDADE);
     const progressoCicloAtual = totalAtendimentos % CICLO_FIDELIDADE;
     const faltamParaProximo = CICLO_FIDELIDADE - progressoCicloAtual;
@@ -503,17 +611,29 @@ function verHistorico(nomeCliente) {
         const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
         const diaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][data.getDay()];
         
+        let totalProdutos = 0;
+        let produtosExibicao = [];
+        if (a.produtos && a.produtos.length > 0) {
+            a.produtos.forEach(p => {
+                const produtoAtual = db.produtos.find(prod => prod.nome === p.nome);
+                const preco = produtoAtual ? parseFloat(produtoAtual.valor || 0) : 0;
+                totalProdutos += preco * p.qtd;
+                produtosExibicao.push(`${p.qtd}x ${p.nome}`);
+            });
+        }
+        
         return `
             <div class="bg-white p-3 rounded-xl border-l-4 ${a.pendente ? 'border-rose-500' : 'border-emerald-500'}">
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-[9px] font-black uppercase text-slate-500">${diaSemana}, ${dataFormatada}</p>
                         <p class="text-[11px] font-black uppercase mt-1">${a.servicos.join(' + ')}</p>
-                        ${a.produtos && a.produtos.length > 0 ? `<p class="text-[9px] text-blue-500 font-bold mt-1">🛍️ ${a.produtos.join(', ')}</p>` : ''}
+                        ${a.desconto > 0 ? `<p class="text-[8px] text-rose-400 font-bold">Desconto: -R$ ${parseFloat(a.desconto).toFixed(2)}</p>` : ''}
+                        ${produtosExibicao.length > 0 ? `<p class="text-[9px] text-blue-500 font-bold mt-1">🛍️ ${produtosExibicao.join(', ')}: R$ ${totalProdutos.toFixed(2)}</p>` : ''}
                         ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-bold">💵 Gorjeta: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
                     </div>
                     <div class="text-right">
-                        <p class="text-sm font-black text-rose-600">R$ ${a.total}</p>
+                        <p class="text-sm font-black text-rose-600">R$ ${parseFloat(a.total).toFixed(2)}</p>
                         <p class="text-[8px] font-bold uppercase ${a.pendente ? 'text-rose-500' : 'text-emerald-500'}">${a.pendente ? '⚠️ PENDENTE' : '✅ PAGO'}</p>
                         <p class="text-[7px] text-slate-400 mt-1">${a.pagamento || ''}</p>
                     </div>
@@ -521,7 +641,6 @@ function verHistorico(nomeCliente) {
             </div>`;
     }
     
-    // Mostra apenas os atendimentos do ciclo atual (limite 5)
     const inicioCiclo = ciclosCompletos * CICLO_FIDELIDADE;
     const fimCiclo = inicioCiclo + CICLO_FIDELIDADE;
     const atendimentosCicloAtual = atendimentosDoCliente.slice(inicioCiclo, fimCiclo);
@@ -542,7 +661,10 @@ function verHistorico(nomeCliente) {
             </div>
         </div>
         
-        <!-- Fidelidade -->
+        <button onclick="novoAtendimentoDoCliente('${nomeCliente.replace(/'/g, "\\'")}')" class="w-full mb-4 bg-rose-500 text-white py-3 rounded-xl text-[10px] font-black uppercase active:scale-95 transition-transform">
+            ✂️ Novo Atendimento
+        </button>
+        
         <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-2xl mb-4 border border-amber-200">
             <div class="flex items-center justify-between mb-2">
                 <span class="text-[10px] font-black uppercase text-amber-700">🏆 Fidelidade: ${ciclosCompletos} ${ciclosCompletos === 1 ? 'ciclo' : 'ciclos'}</span>
@@ -557,7 +679,6 @@ function verHistorico(nomeCliente) {
             </div>
         </div>
         
-        <!-- Histórico (accordion) -->
         <div class="bg-slate-100 rounded-2xl overflow-hidden">
             <button onclick="toggleHistorico(this)" class="w-full p-4 flex justify-between items-center font-black uppercase text-[10px] text-slate-600 active:bg-slate-200 transition-colors">
                 <span>📜 Últimos atendimentos (${atendimentosCicloAtual.length})</span>
@@ -595,5 +716,14 @@ function fecharModal() {
 }
 function removerAtend(idx) { if(confirm('Remover este atendimento?')) { db.atendimentos.splice(idx, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderSemana(); } }
 function aplicarFiltroTag(t) { document.getElementById('filtro-cliente').value = t; renderClientes(); }
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('dropdown-clientes');
+    const input = document.getElementById('m-nome-sem');
+    if (dropdown && input && !input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
 
 renderSemana();
