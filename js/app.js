@@ -63,39 +63,139 @@ function renderSemana() {
                 <span class="text-[10px] bg-slate-100 px-2 py-1 rounded-full font-bold">${atends.length}</span>
             </button>
             <div id="lista-dia-${idx}" class="lista-atendimentos ${idx === hoje ? 'aberta' : ''}">
-                ${atends.map((a, i_orig) => `
+                ${atends.map((a, i_orig) => {
+                    const idxOriginal = db.atendimentos.indexOf(a);
+                    return `
                     <div class="card-atendimento ${a.pendente ? 'border-l-4 border-rose-500' : ''}">
                         <div>
                             <p class="font-black text-xs uppercase">${a.nome} ${a.pendente ? '<span class="text-rose-600 text-[8px]">[PENDENTE]</span>' : ''}</p>
                             <p class="text-[9px] text-slate-400 font-bold uppercase">${a.servicos.join(' + ')}</p>
                             <p class="text-[8px] text-slate-400 italic">${a.pendente ? 'Dinheiro com: ' : 'Recebido por: '} ${a.recebedor || 'N/I'}</p>
                             ${a.produtos && a.produtos.length > 0 ? `<p class="text-[9px] text-blue-500 font-black mt-1">PRODUTOS: ${a.produtos.join(', ')}</p>` : ''}
+                            ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-black mt-1">💵 GORJETA: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
                         </div>
                         <div class="text-right">
                             <p class="text-sm font-black text-rose-600">R$ ${a.total}</p>
-                            <p class="text-[9px] font-bold text-slate-500 uppercase">${a.pendente ? '' : (a.pagamento || '')}</p> 
-                            <button onclick="removerAtend(${db.atendimentos.indexOf(a)})" class="text-[8px] font-bold text-slate-300 uppercase">Remover</button>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase">${a.pendente ? '' : (a.pagamento || '')}</p>
+                            <div class="flex gap-2 justify-end mt-1">
+                                <button onclick="editarAtendimento(${idxOriginal})" class="text-[8px] font-bold text-blue-400 uppercase">Editar</button>
+                                <button onclick="removerAtend(${idxOriginal})" class="text-[8px] font-bold text-slate-300 uppercase">Remover</button>
+                            </div>
                         </div>
                     </div>
-                `).join('') || '<p class="text-center text-slate-300 text-[10px] py-4 font-bold">SEM REGISTROS RECENTES</p>'}
+                `}).join('') || '<p class="text-center text-slate-300 text-[10px] py-4 font-bold">SEM REGISTROS RECENTES</p>'}
             </div>
         `;
     });
     document.getElementById('total-semanal').innerText = `R$ ${faturamentoTotal.toFixed(2)}`;
 }
 
+// EDITAR ATENDIMENTO (NOVA FUNÇÃO)
+function editarAtendimento(idx) {
+    const atend = db.atendimentos[idx];
+    itemSendoEditado = idx;
+    document.getElementById('modal').classList.add('active');
+    document.getElementById('modal-title').innerText = "Editar Atendimento";
+    document.getElementById('btn-confirmar').innerText = "Salvar Alterações";
+    
+    const container = document.getElementById('campos-dinamicos');
+    let htmlProds = '';
+    if (db.produtos && db.produtos.length > 0) {
+        htmlProds = `<p class="text-[10px] font-black uppercase text-blue-500 mt-4 mb-2">Produtos Vendidos</p>
+        <div class="grid grid-cols-3 gap-2">
+            ${db.produtos.map((p, i) => {
+                const produtoNoAtend = atend.produtos ? atend.produtos.find(pr => pr.includes(p.nome)) : null;
+                let qty = 1;
+                let checked = '';
+                if (produtoNoAtend) {
+                    checked = 'checked';
+                    const match = produtoNoAtend.match(/^(\d+)x/);
+                    if (match) qty = match[1];
+                }
+                return `
+                <div class="flex flex-col">
+                    <input type="checkbox" id="prod-${i}" name="prod" value="${p.nome}" data-price="${p.valor || 0}" class="service-chip" ${checked}>
+                    <label for="prod-${i}" class="service-label">${p.nome.toUpperCase()}</label>
+                    <div class="qty-wrapper" style="${checked ? 'display:flex' : ''}">
+                        <input type="number" id="qty-prod-${i}" value="${qty}" min="1" class="qty-input">
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }
+
+    const servicosMarcados = {};
+    ['Corte', 'Barba', ...Object.keys(EXTRAS_LISTA)].forEach(s => {
+        servicosMarcados[s] = atend.servicos.includes(s) ? 'checked' : '';
+    });
+
+    container.innerHTML = `
+        <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" value="${atend.nome}">
+        <datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist>
+        
+        <p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p>
+        <div class="grid grid-cols-2 gap-2">
+            <input type="checkbox" id="s-c" name="serv" value="Corte" class="service-chip" ${servicosMarcados['Corte']}>
+            <label for="s-c" class="service-label">CORTE</label>
+            <input type="checkbox" id="s-b" name="serv" value="Barba" class="service-chip" ${servicosMarcados['Barba']}>
+            <label for="s-b" class="service-label">BARBA</label>
+        </div>
+        
+        <p class="text-[10px] font-black uppercase text-slate-400 mt-4 mb-2">Extras</p>
+        <div class="grid grid-cols-2 gap-2">
+            ${Object.keys(EXTRAS_LISTA).map((e,i)=>`
+                <input type="checkbox" id="e-${i}" name="serv" value="${e}" class="service-chip" ${servicosMarcados[e]}>
+                <label for="e-${i}" class="service-label">${e.toUpperCase()}</label>
+            `).join('')}
+        </div>
+        
+        ${htmlProds}
+        
+        <p class="text-[10px] font-black uppercase text-slate-400 mt-4 mb-2">Pagamento</p>
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl mb-1">
+                <input type="checkbox" id="m-pendente" onchange="toggleCamposPagamento()" class="w-4 h-4" ${atend.pendente ? 'checked' : ''}>
+                <label for="m-pendente" class="text-[10px] font-black uppercase text-rose-500">Pagamento Pendente</label>
+            </div>
+            
+            <div id="wrapper-pg" class="flex gap-2 ${atend.pendente ? 'hidden' : ''}">
+                <select id="m-pg" class="flex-1">
+                    <option ${atend.pagamento === 'Pix' ? 'selected' : ''}>Pix</option>
+                    <option ${atend.pagamento === 'Dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                    <option ${atend.pagamento === 'Cartão' ? 'selected' : ''}>Cartão</option>
+                </select>
+                <input type="number" id="m-desc" placeholder="Desconto R$" class="w-24" value="0">
+            </div>
+            
+            <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full ${atend.pendente ? '' : 'hidden'}" value="${atend.recebedor || ''}">
+        </div>
+        
+        <div class="bg-amber-50 p-3 rounded-xl mt-4 border border-amber-200">
+            <label class="text-[10px] font-black uppercase text-amber-600 mb-1 block">💵 Gorjeta (Sua Parte)</label>
+            <input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full font-black text-amber-600" value="${atend.gorjeta || ''}" step="0.01">
+            <p class="text-[8px] text-amber-500 font-bold mt-1">Este valor é 100% seu, não divide com a loja</p>
+        </div>
+        
+        <input type="number" id="m-total-manual" placeholder="Total Final R$" class="mt-4 font-black text-rose-600" value="${atend.totalManual || atend.total}">`;
+    
+    // Aplica toggle inicial
+    setTimeout(() => {
+        toggleCamposPagamento();
+    }, 100);
+}
+
 // NOVA FUNÇÃO AUXILIAR PARA O FORMULÁRIO DINÂMICO
 function toggleCamposPagamento() {
-    const isPendente = document.getElementById('m-pendente').checked;
+    const isPendente = document.getElementById('m-pendente')?.checked;
     const campoPg = document.getElementById('wrapper-pg');
     const campoRecebedor = document.getElementById('m-recebedor');
 
     if (isPendente) {
-        campoPg.classList.add('hidden');
-        campoRecebedor.classList.remove('hidden');
+        if (campoPg) campoPg.classList.add('hidden');
+        if (campoRecebedor) campoRecebedor.classList.remove('hidden');
     } else {
-        campoPg.classList.remove('hidden');
-        campoRecebedor.classList.add('hidden');
+        if (campoPg) campoPg.classList.remove('hidden');
+        if (campoRecebedor) campoRecebedor.classList.add('hidden');
     }
 }
 
@@ -164,6 +264,13 @@ function abrirModal(ehNovo = true) {
                 
                 <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full hidden">
             </div>
+            
+            <div class="bg-amber-50 p-3 rounded-xl mt-4 border border-amber-200">
+                <label class="text-[10px] font-black uppercase text-amber-600 mb-1 block">💵 Gorjeta (Sua Parte)</label>
+                <input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full font-black text-amber-600" step="0.01">
+                <p class="text-[8px] text-amber-500 font-bold mt-1">Este valor é 100% seu, não divide com a loja</p>
+            </div>
+            
             <input type="number" id="m-total-manual" placeholder="Total Final R$" class="mt-4 font-black text-rose-600">`;
     }
 }
@@ -227,9 +334,10 @@ async function salvarDados() {
         const prodsChecked = Array.from(document.querySelectorAll('input[name="prod"]:checked'));
         const desc = parseFloat(document.getElementById('m-desc')?.value) || 0;
         const pgtoRaw = document.getElementById('m-pg')?.value;
-        const pendente = document.getElementById('m-pendente').checked;
-        const recebedor = document.getElementById('m-recebedor').value || "Não informado";
-        const totalManual = document.getElementById('m-total-manual').value;
+        const pendente = document.getElementById('m-pendente')?.checked || false;
+        const recebedor = document.getElementById('m-recebedor')?.value || "Não informado";
+        const totalManual = document.getElementById('m-total-manual')?.value;
+        const gorjeta = parseFloat(document.getElementById('m-gorjeta')?.value) || 0;
 
         let precoBase = (diaIdx >= 1 && diaIdx <= 3) ? 30 : 35;
         let totalServ = sel.reduce((acc, s) => acc + ((s==='Corte'||s==='Barba') ? precoBase : (EXTRAS_LISTA[s]||0)), 0);
@@ -237,7 +345,7 @@ async function salvarDados() {
         
         prodsChecked.forEach(p => {
             const pr = parseFloat(p.getAttribute('data-price')) || 0;
-            const q = parseInt(document.getElementById(`qty-${p.id}`).value) || 1;
+            const q = parseInt(document.getElementById(`qty-prod-${p.id.split('-')[1]}`)?.value) || 1;
             totalProd += pr * q; pResumo.push(`${q}x ${p.value}`);
         });
         
@@ -245,17 +353,28 @@ async function salvarDados() {
         let totalFinal = totalManual ? parseFloat(totalManual).toFixed(2) : totalCalculado.toFixed(2);
 
         if (nome) {
-            db.atendimentos.push({ 
+            const atendimento = { 
                 nome, 
                 servicos: sel, 
                 produtos: pResumo, 
                 total: totalFinal, 
                 diaIndex: diaIdx, 
-                dataHora: new Date().toISOString(),
+                dataHora: itemSendoEditado !== null ? db.atendimentos[itemSendoEditado].dataHora : new Date().toISOString(),
                 pagamento: pendente ? "PENDENTE" : pgtoRaw,
                 pendente: pendente,
-                recebedor: recebedor 
-            });
+                recebedor: recebedor,
+                gorjeta: gorjeta,
+                totalManual: totalManual || ''
+            };
+            
+            if (itemSendoEditado !== null && abaAtual === 'semanal') {
+                // EDITAR ATENDIMENTO EXISTENTE
+                db.atendimentos[itemSendoEditado] = atendimento;
+            } else {
+                // NOVO ATENDIMENTO
+                db.atendimentos.push(atendimento);
+            }
+            
             localStorage.setItem('barber_v6', JSON.stringify(db));
             fecharModal(); renderSemana();
         }
@@ -326,7 +445,7 @@ function excluirCliente(i) { if(confirm('Excluir?')) { db.clientes.splice(i, 1);
 function initCropper(input) { if (input.files && input.files[0]) { const reader = new FileReader(); document.getElementById('crop-container').style.display = 'block'; reader.onload = e => { if (croppieInstance) croppieInstance.destroy(); croppieInstance = new Croppie(document.getElementById('cropper-wrap'), { viewport: { width: 160, height: 160, type: 'square' }, boundary: { width: 260, height: 260 } }); croppieInstance.bind({ url: e.target.result }); }; reader.readAsDataURL(input.files[0]); } }
 function toggleDia(idx) { document.getElementById(`lista-dia-${idx}`).classList.toggle('aberta'); }
 function fecharModal() { document.getElementById('modal').classList.remove('active'); itemSendoEditado = null; if(croppieInstance) croppieInstance.destroy(); croppieInstance = null; }
-function removerAtend(idx) { db.atendimentos.splice(idx, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderSemana(); }
+function removerAtend(idx) { if(confirm('Remover este atendimento?')) { db.atendimentos.splice(idx, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderSemana(); } }
 function aplicarFiltroTag(t) { document.getElementById('filtro-cliente').value = t; renderClientes(); }
 
 renderSemana();

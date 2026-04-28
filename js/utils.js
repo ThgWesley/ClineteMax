@@ -13,7 +13,7 @@ function salvarPorcentagem(valor) {
     localStorage.setItem('barber_v6', JSON.stringify(db));
     
     // Atualiza a tela em tempo real
-    renderAjustes(); 
+    renderAjustes();
 }
 
 function renderAjustes() {
@@ -28,24 +28,34 @@ function renderAjustes() {
     // Atualiza os textos da interface com a porcentagem escolhida
     const inputPct = document.getElementById('input-porcentagem');
     if (inputPct) inputPct.value = pctMeu;
-
+    
     const labelMeu = document.getElementById('label-meu');
     if (labelMeu) labelMeu.innerText = `Minha Parte (${pctMeu}%)`;
-
+    
     const labelCustos = document.getElementById('label-custos');
     if (labelCustos) labelCustos.innerText = `Loja/Custos (${pctLoja}%)`;
-
+    
     // Faz os cálculos matemáticos com base no faturamento real
-    const totalBruto = db.atendimentos.reduce((acc, a) => acc + parseFloat(a.total), 0);
-    const minhaParteVal = (totalBruto * (pctMeu / 100)).toFixed(2);
-    const custosLojaVal = (totalBruto * (pctLoja / 100)).toFixed(2);
+    // NOVO: Separa gorjetas (100% suas) do total bruto antes de dividir
+    const totalBruto = db.atendimentos.reduce((acc, a) => acc + parseFloat(a.total || 0), 0);
+    const totalGorjetas = db.atendimentos.reduce((acc, a) => acc + (parseFloat(a.gorjeta) || 0), 0);
+    const totalParaDividir = totalBruto - totalGorjetas;
+    
+    // Sua parte = (% do valor líquido) + 100% das gorjetas
+    const minhaParteVal = ((totalParaDividir * (pctMeu / 100)) + totalGorjetas).toFixed(2);
+    const custosLojaVal = (totalParaDividir * (pctLoja / 100)).toFixed(2);
     
     // Joga os valores finais na tela
     const dashMeu = document.getElementById('dash-meu');
     if (dashMeu) dashMeu.innerText = `R$ ${minhaParteVal}`;
-
+    
     const dashCustos = document.getElementById('dash-custos');
     if (dashCustos) dashCustos.innerText = `R$ ${custosLojaVal}`;
+    
+    // Atualiza label com info de gorjeta se houver
+    if (totalGorjetas > 0 && labelMeu) {
+        labelMeu.innerText = `Minha Parte (${pctMeu}% + 💵 R$${totalGorjetas.toFixed(2)})`;
+    }
 }
 
 // ==========================================
@@ -57,7 +67,8 @@ async function gerarRelatorioPNG() {
     
     let totalGeralServicos = 0;
     let totalPendente = 0;
-
+    let totalGorjetas = 0;
+    
     // IMPLEMENTAÇÃO IDEIA 1: Filtro de 7 dias para o PNG
     const limiteData = new Date();
     limiteData.setDate(limiteData.getDate() - 7);
@@ -79,15 +90,17 @@ async function gerarRelatorioPNG() {
                 </thead>
                 <tbody>
     `;
-
+    
     // Filtra os atendimentos dos últimos 7 dias para o relatório
     const atendimentosFiltrados = db.atendimentos.filter(a => new Date(a.dataHora || 0) >= limiteData);
-
+    
     atendimentosFiltrados.forEach(atend => {
-        let valorTotal = parseFloat(atend.total);
+        let valorTotal = parseFloat(atend.total || 0);
+        let gorjeta = parseFloat(atend.gorjeta || 0);
         totalGeralServicos += valorTotal;
-        if(atend.pendente) totalPendente += valorTotal;
-
+        totalGorjetas += gorjeta;
+        if (atend.pendente) totalPendente += valorTotal;
+        
         html += `
             <tr style="border-bottom: 1px solid #f8fafc;">
                 <td style="padding: 12px 0;">
@@ -96,8 +109,9 @@ async function gerarRelatorioPNG() {
                         ${atend.pendente ? '⚠️ PENDENTE' : '✅ PAGO'} - Com: ${atend.recebedor || 'N/I'}
                     </div>
                     <div style="font-size: 8px; color: #94a3b8; font-weight: 600; margin-top: 2px;">
-                        ${atend.servicos.join(' + ')} [${atend.pagamento}]
+                        ${atend.servicos.join(' + ')} [${atend.pagamento || 'N/I'}]
                     </div>
+                    ${gorjeta > 0 ? `<div style="font-size: 8px; color: #f59e0b; font-weight: 700; margin-top: 2px;">💵 Gorjeta: R$ ${gorjeta.toFixed(2)}</div>` : ''}
                 </td>
                 <td style="padding: 12px 0; text-align: right; font-weight: 900; color: #1e293b; font-size: 13px;">
                     R$ ${valorTotal.toFixed(2)}
@@ -105,9 +119,11 @@ async function gerarRelatorioPNG() {
             </tr>
         `;
     });
-
-    const valorMinhaParte = (totalGeralServicos * (pctMeu / 100)).toFixed(2);
-
+    
+    const totalLiquido = totalGeralServicos - totalGorjetas;
+    const valorMinhaParte = ((totalLiquido * (pctMeu / 100)) + totalGorjetas).toFixed(2);
+    const valorLoja = (totalLiquido * ((100 - pctMeu) / 100)).toFixed(2);
+    
     html += `
                 </tbody>
             </table>
@@ -117,30 +133,39 @@ async function gerarRelatorioPNG() {
                     <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Total Bruto:</span>
                     <span style="font-size: 14px; font-weight: 900; color: #1e293b;">R$ ${totalGeralServicos.toFixed(2)}</span>
                 </div>
+                ${totalGorjetas > 0 ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #f59e0b;">
+                    <span style="font-size: 11px; font-weight: 800; text-transform: uppercase;">💵 Total Gorjetas (Suas):</span>
+                    <span style="font-size: 14px; font-weight: 900;">R$ ${totalGorjetas.toFixed(2)}</span>
+                </div>` : ''}
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #e11d48;">
                     <span style="font-size: 11px; font-weight: 800; text-transform: uppercase;">Total Pendente:</span>
                     <span style="font-size: 14px; font-weight: 900;">R$ ${totalPendente.toFixed(2)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; border-top: 2px dashed #e2e8f0; padding-top: 10px; margin-top: 5px;">
-                    <span style="font-size: 11px; font-weight: 800; color: #10b981; text-transform: uppercase;">Minha Parte (${pctMeu}%):</span>
+                    <span style="font-size: 11px; font-weight: 800; color: #10b981; text-transform: uppercase;">Minha Parte (${pctMeu}% + 💵):</span>
                     <span style="font-size: 18px; font-weight: 900; color: #10b981;">R$ ${valorMinhaParte}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-top: 5px;">
+                    <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Loja/Custos (${100 - pctMeu}%):</span>
+                    <span style="font-size: 14px; font-weight: 900; color: #64748b;">R$ ${valorLoja}</span>
                 </div>
             </div>
             
             <p style="text-align: center; font-size: 9px; color: #94a3b8; margin-top: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Gerado por Cliente Max</p>
         </div>
     `;
-
+    
     container.innerHTML = html;
-
+    
     try {
         const canvas = await html2canvas(container, {
             backgroundColor: "#ffffff",
-            scale: 3, 
+            scale: 3,
             logging: false,
             useCORS: true
         });
-
+        
         canvas.toBlob(async (blob) => {
             const dataRef = new Date().toLocaleDateString().replace(/\//g, '-');
             const file = new File([blob], `relatorio_barbearia_${dataRef}.png`, { type: 'image/png' });
@@ -170,7 +195,7 @@ async function exportarBackup() {
     const dataRef = new Date().toLocaleDateString().replace(/\//g, '-');
     const nomeArquivo = `backup_topindica_${dataRef}.json`;
     const dadosStr = JSON.stringify(db, null, 2);
-
+    
     if (navigator.share) {
         try {
             const arquivo = new File([dadosStr], nomeArquivo, { type: 'application/json' });
@@ -183,7 +208,7 @@ async function exportarBackup() {
             console.log("Compartilhamento cancelado");
         }
     }
-
+    
     const blob = new Blob([dadosStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -201,7 +226,7 @@ function importarBackup(e) {
         try {
             const dados = JSON.parse(ev.target.result);
             if (dados.atendimentos || dados.clientes) {
-                if(confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
+                if (confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
                     db = dados;
                     localStorage.setItem('barber_v6', JSON.stringify(db));
                     location.reload();
