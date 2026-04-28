@@ -80,18 +80,16 @@ function renderSemana() {
                         });
                     }
                     
-                    // Total de serviços (sem produtos)
-                    const totalServicos = parseFloat(a.total || 0) - totalProdutos - parseFloat(a.gorjeta || 0);
-                    
                     return `
                     <div class="card-atendimento ${a.pendente ? 'border-l-4 border-rose-500' : ''}">
                         <div>
                             <p class="font-black text-xs uppercase">${a.nome} ${a.pendente ? '<span class="text-rose-600 text-[8px]">[PENDENTE]</span>' : ''}</p>
                             <p class="text-[9px] text-slate-400 font-bold uppercase">${a.servicos.join(' + ')}</p>
                             ${a.desconto > 0 ? `<p class="text-[8px] text-rose-400 font-bold">Desconto: -R$ ${parseFloat(a.desconto).toFixed(2)}</p>` : ''}
-                            <p class="text-[8px] text-slate-400 italic">${a.pendente ? 'Dinheiro com: ' : 'Recebido por: '} ${a.recebedor || 'N/I'}</p>
+                            ${a.recebedor && a.recebedor !== 'Não informado' ? `<p class="text-[8px] text-slate-400 italic">${a.pendente ? 'Dinheiro com: ' : 'Recebido por: '} ${a.recebedor}</p>` : ''}
                             ${produtosExibicao.length > 0 ? `<p class="text-[9px] text-blue-500 font-black mt-1">🛍️ ${produtosExibicao.join(', ')}: R$ ${totalProdutos.toFixed(2)}</p>` : ''}
-                            ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-black mt-1">💵 GORJETA: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
+                            ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-black mt-1">💵 Gorjeta: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
+                            ${a.barbeiro && a.barbeiroNome ? `<p class="text-[9px] text-purple-500 font-black mt-1">+ ${a.barbeiroNome}: R$ ${parseFloat(a.barbeiroValor || 0).toFixed(2)}</p>` : ''}
                         </div>
                         <div class="text-right">
                             <p class="text-sm font-black text-rose-600">R$ ${parseFloat(a.total).toFixed(2)}</p>
@@ -155,7 +153,7 @@ function editarAtendimento(idx) {
     container.innerHTML = `
         <div class="flex items-center gap-3 mb-4">
             ${fotoCliente ? `<img src="${fotoCliente}" class="w-12 h-12 rounded-full object-cover border-2 border-rose-200">` : '<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>'}
-            <div class="flex-1">
+            <div class="flex-1 relative">
                 <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" value="${atend.nome}" onkeyup="filtrarClientesDropdown(this.value)" onfocus="filtrarClientesDropdown(this.value)" class="font-black text-sm">
                 <div id="dropdown-clientes" class="hidden absolute z-50 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto w-full mt-1"></div>
             </div>
@@ -199,6 +197,15 @@ function editarAtendimento(idx) {
             <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full ${atend.pendente ? '' : 'hidden'}" value="${atend.recebedor || ''}">
         </div>
         
+        <div class="bg-purple-50 p-3 rounded-xl mt-4 border border-purple-200">
+            <label class="text-[10px] font-black uppercase text-purple-600 mb-1 block">+ Barbeiro</label>
+            <div class="flex gap-2">
+                <input type="text" id="m-barbeiro-nome" placeholder="Nome" class="flex-1" value="${atend.barbeiroNome || ''}">
+                <input type="number" id="m-barbeiro-valor" placeholder="R$ 0,00" class="w-28" value="${atend.barbeiroValor || ''}" step="0.01">
+            </div>
+            <p class="text-[8px] text-purple-400 font-bold mt-1">Valor de outro barbeiro que está com você</p>
+        </div>
+        
         <div class="bg-amber-50 p-3 rounded-xl mt-4 border border-amber-200">
             <label class="text-[10px] font-black uppercase text-amber-600 mb-1 block">💵 Gorjeta (Sua Parte)</label>
             <input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full font-black text-amber-600" value="${atend.gorjeta || ''}" step="0.01">
@@ -226,7 +233,6 @@ function toggleCamposPagamento() {
     }
 }
 
-// Dropdown de clientes com foto
 function filtrarClientesDropdown(termo) {
     const dropdown = document.getElementById('dropdown-clientes');
     if (!dropdown) return;
@@ -267,7 +273,6 @@ function selecionarClienteDropdown(nome) {
     if (inputNome) inputNome.value = nome;
     if (dropdown) dropdown.classList.add('hidden');
     
-    // Busca foto do cliente e exibe
     const cliente = db.clientes.find(c => c.nome === nome);
     const fotoContainer = document.getElementById('foto-cliente-preview');
     
@@ -356,6 +361,15 @@ function abrirModal(ehNovo = true) {
                 <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" class="w-full hidden">
             </div>
             
+            <div class="bg-purple-50 p-3 rounded-xl mt-4 border border-purple-200">
+                <label class="text-[10px] font-black uppercase text-purple-600 mb-1 block">+ Barbeiro</label>
+                <div class="flex gap-2">
+                    <input type="text" id="m-barbeiro-nome" placeholder="Nome" class="flex-1">
+                    <input type="number" id="m-barbeiro-valor" placeholder="R$ 0,00" class="w-28" step="0.01">
+                </div>
+                <p class="text-[8px] text-purple-400 font-bold mt-1">Valor de outro barbeiro que está com você</p>
+            </div>
+            
             <div class="bg-amber-50 p-3 rounded-xl mt-4 border border-amber-200">
                 <label class="text-[10px] font-black uppercase text-amber-600 mb-1 block">💵 Gorjeta (Sua Parte)</label>
                 <input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full font-black text-amber-600" step="0.01">
@@ -366,7 +380,6 @@ function abrirModal(ehNovo = true) {
     }
 }
 
-// Botão novo atendimento do perfil
 function novoAtendimentoDoCliente(nomeCliente) {
     abrirModal(true);
     abaAtual = 'semanal';
@@ -442,6 +455,8 @@ async function salvarDados() {
         const recebedor = document.getElementById('m-recebedor')?.value || "Não informado";
         const totalManual = document.getElementById('m-total-manual')?.value;
         const gorjeta = parseFloat(document.getElementById('m-gorjeta')?.value) || 0;
+        const barbeiroNome = document.getElementById('m-barbeiro-nome')?.value || '';
+        const barbeiroValor = parseFloat(document.getElementById('m-barbeiro-valor')?.value) || 0;
 
         let diaIdx;
         let dataHora;
@@ -468,6 +483,7 @@ async function salvarDados() {
             produtosSalvos.push({ nome: p.value, qtd: q });
         });
         
+        // Total final: serviços + produtos - desconto + gorjeta (barbeiro não entra no total)
         let totalCalculado = totalServ + totalProd - desc + gorjeta;
         let totalFinal = totalManual ? parseFloat(totalManual).toFixed(2) : totalCalculado.toFixed(2);
 
@@ -484,6 +500,8 @@ async function salvarDados() {
                 recebedor: recebedor,
                 gorjeta: gorjeta,
                 desconto: desc,
+                barbeiroNome: barbeiroNome,
+                barbeiroValor: barbeiroValor,
                 totalManual: totalManual || ''
             };
             
@@ -631,11 +649,12 @@ function verHistorico(nomeCliente) {
                         ${a.desconto > 0 ? `<p class="text-[8px] text-rose-400 font-bold">Desconto: -R$ ${parseFloat(a.desconto).toFixed(2)}</p>` : ''}
                         ${produtosExibicao.length > 0 ? `<p class="text-[9px] text-blue-500 font-bold mt-1">🛍️ ${produtosExibicao.join(', ')}: R$ ${totalProdutos.toFixed(2)}</p>` : ''}
                         ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-bold">💵 Gorjeta: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
+                        ${a.barbeiro && a.barbeiroNome ? `<p class="text-[9px] text-purple-500 font-bold">+ ${a.barbeiroNome}: R$ ${parseFloat(a.barbeiroValor || 0).toFixed(2)}</p>` : ''}
                     </div>
                     <div class="text-right">
                         <p class="text-sm font-black text-rose-600">R$ ${parseFloat(a.total).toFixed(2)}</p>
                         <p class="text-[8px] font-bold uppercase ${a.pendente ? 'text-rose-500' : 'text-emerald-500'}">${a.pendente ? '⚠️ PENDENTE' : '✅ PAGO'}</p>
-                        <p class="text-[7px] text-slate-400 mt-1">${a.pagamento || ''}</p>
+                        <p class="text-[7px] text-slate-400 mt-1">${a.pagamento || ''}${a.recebedor && a.recebedor !== 'Não informado' ? ` • ${a.recebedor}` : ''}</p>
                     </div>
                 </div>
             </div>`;
@@ -705,8 +724,24 @@ function toggleHistorico(btn) {
     }
 }
 
-function initCropper(input) { if (input.files && input.files[0]) { const reader = new FileReader(); document.getElementById('crop-container').style.display = 'block'; reader.onload = e => { if (croppieInstance) croppieInstance.destroy(); croppieInstance = new Croppie(document.getElementById('cropper-wrap'), { viewport: { width: 160, height: 160, type: 'square' }, boundary: { width: 260, height: 260 } }); croppieInstance.bind({ url: e.target.result }); }; reader.readAsDataURL(input.files[0]); } }
+function initCropper(input) { 
+    if (input.files && input.files[0]) { 
+        const reader = new FileReader(); 
+        document.getElementById('crop-container').style.display = 'block'; 
+        reader.onload = e => { 
+            if (croppieInstance) croppieInstance.destroy(); 
+            croppieInstance = new Croppie(document.getElementById('cropper-wrap'), { 
+                viewport: { width: 160, height: 160, type: 'square' }, 
+                boundary: { width: 260, height: 260 } 
+            }); 
+            croppieInstance.bind({ url: e.target.result }); 
+        }; 
+        reader.readAsDataURL(input.files[0]); 
+    } 
+}
+
 function toggleDia(idx) { document.getElementById(`lista-dia-${idx}`).classList.toggle('aberta'); }
+
 function fecharModal() { 
     document.getElementById('modal').classList.remove('active'); 
     document.getElementById('btn-confirmar').style.display = '';
@@ -714,8 +749,19 @@ function fecharModal() {
     if(croppieInstance) croppieInstance.destroy(); 
     croppieInstance = null; 
 }
-function removerAtend(idx) { if(confirm('Remover este atendimento?')) { db.atendimentos.splice(idx, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderSemana(); } }
-function aplicarFiltroTag(t) { document.getElementById('filtro-cliente').value = t; renderClientes(); }
+
+function removerAtend(idx) { 
+    if(confirm('Remover este atendimento?')) { 
+        db.atendimentos.splice(idx, 1); 
+        localStorage.setItem('barber_v6', JSON.stringify(db)); 
+        renderSemana(); 
+    } 
+}
+
+function aplicarFiltroTag(t) { 
+    document.getElementById('filtro-cliente').value = t; 
+    renderClientes(); 
+}
 
 // Fecha dropdown ao clicar fora
 document.addEventListener('click', function(e) {
