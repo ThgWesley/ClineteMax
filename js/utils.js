@@ -4,57 +4,54 @@
 function salvarPorcentagem(valor) {
     let num = parseInt(valor);
     
-    // Evita que coloque números negativos, letras ou mais que 100%
     if (isNaN(num) || num < 0) num = 0;
     if (num > 100) num = 100;
     
-    // Salva a sua escolha no banco de dados principal
     db.minhaParte = num;
     localStorage.setItem('barber_v6', JSON.stringify(db));
     
-    // Atualiza a tela em tempo real
-    renderAjustes();
+    renderAjustes(); 
 }
 
 function renderAjustes() {
-    // Se for a primeira vez abrindo o app e não tiver porcentagem, define como 60%
-    if (db.minhaParte === undefined) {
+    if (db.minhaParte === undefined || db.minhaParte === null) {
         db.minhaParte = 60;
     }
     
-    const pctMeu = db.minhaParte;
-    const pctLoja = 100 - pctMeu;
-    
-    // Atualiza os textos da interface com a porcentagem escolhida
     const inputPct = document.getElementById('input-porcentagem');
-    if (inputPct) inputPct.value = pctMeu;
+    if (inputPct) inputPct.value = db.minhaParte;
     
+    const mePercentage = parseFloat(db.minhaParte) / 100;
+    const storePercentage = 1 - mePercentage;
+    
+    const totalPago = db.atendimentos
+        .filter(a => !a.pendente)
+        .reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
+    
+    const totalGorjetas = db.atendimentos
+        .reduce((acc, a) => acc + (parseFloat(a.gorjeta) || 0), 0);
+    
+    const totalParaDividir = totalPago - totalGorjetas;
+    const meuLucro  = (totalParaDividir * mePercentage) + totalGorjetas;
+    const caixaLoja = totalParaDividir * storePercentage;
+    
+    const fmt = (valor) => `R$ ${valor.toFixed(2)}`;
+    
+    const elMyCut  = document.getElementById('dash-meu');
+    const elStore  = document.getElementById('dash-custos');
     const labelMeu = document.getElementById('label-meu');
-    if (labelMeu) labelMeu.innerText = `Minha Parte (${pctMeu}%)`;
-    
     const labelCustos = document.getElementById('label-custos');
-    if (labelCustos) labelCustos.innerText = `Loja/Custos (${pctLoja}%)`;
     
-    // Faz os cálculos matemáticos com base no faturamento real
-    // NOVO: Separa gorjetas (100% suas) do total bruto antes de dividir
-    const totalBruto = db.atendimentos.reduce((acc, a) => acc + parseFloat(a.total || 0), 0);
-    const totalGorjetas = db.atendimentos.reduce((acc, a) => acc + (parseFloat(a.gorjeta) || 0), 0);
-    const totalParaDividir = totalBruto - totalGorjetas;
+    if (elMyCut)  elMyCut.textContent  = fmt(meuLucro);
+    if (elStore)  elStore.textContent  = fmt(caixaLoja);
     
-    // Sua parte = (% do valor líquido) + 100% das gorjetas
-    const minhaParteVal = ((totalParaDividir * (pctMeu / 100)) + totalGorjetas).toFixed(2);
-    const custosLojaVal = (totalParaDividir * (pctLoja / 100)).toFixed(2);
-    
-    // Joga os valores finais na tela
-    const dashMeu = document.getElementById('dash-meu');
-    if (dashMeu) dashMeu.innerText = `R$ ${minhaParteVal}`;
-    
-    const dashCustos = document.getElementById('dash-custos');
-    if (dashCustos) dashCustos.innerText = `R$ ${custosLojaVal}`;
-    
-    // Atualiza label com info de gorjeta se houver
-    if (totalGorjetas > 0 && labelMeu) {
-        labelMeu.innerText = `Minha Parte (${pctMeu}% + 💵 R$${totalGorjetas.toFixed(2)})`;
+    if (labelMeu) {
+        labelMeu.innerText = totalGorjetas > 0 
+            ? `Minha Parte (${db.minhaParte}% + 💵 ${fmt(totalGorjetas)})`
+            : `Minha Parte (${db.minhaParte}%)`;
+    }
+    if (labelCustos) {
+        labelCustos.innerText = `Loja/Custos (${100 - db.minhaParte}%)`;
     }
 }
 
@@ -68,12 +65,10 @@ async function gerarRelatorioPNG() {
     let totalGeralServicos = 0;
     let totalPendente = 0;
     let totalGorjetas = 0;
-    
-    // IMPLEMENTAÇÃO IDEIA 1: Filtro de 7 dias para o PNG
+
     const limiteData = new Date();
     limiteData.setDate(limiteData.getDate() - 7);
     
-    // Início da montagem do HTML do relatório
     let html = `
         <div style="font-family: 'Inter', sans-serif; color: #1e293b; background: white; padding: 20px;">
             <div style="text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 15px;">
@@ -90,17 +85,16 @@ async function gerarRelatorioPNG() {
                 </thead>
                 <tbody>
     `;
-    
-    // Filtra os atendimentos dos últimos 7 dias para o relatório
+
     const atendimentosFiltrados = db.atendimentos.filter(a => new Date(a.dataHora || 0) >= limiteData);
-    
+
     atendimentosFiltrados.forEach(atend => {
         let valorTotal = parseFloat(atend.total || 0);
         let gorjeta = parseFloat(atend.gorjeta || 0);
         totalGeralServicos += valorTotal;
         totalGorjetas += gorjeta;
-        if (atend.pendente) totalPendente += valorTotal;
-        
+        if(atend.pendente) totalPendente += valorTotal;
+
         html += `
             <tr style="border-bottom: 1px solid #f8fafc;">
                 <td style="padding: 12px 0;">
@@ -119,11 +113,11 @@ async function gerarRelatorioPNG() {
             </tr>
         `;
     });
-    
+
     const totalLiquido = totalGeralServicos - totalGorjetas;
     const valorMinhaParte = ((totalLiquido * (pctMeu / 100)) + totalGorjetas).toFixed(2);
     const valorLoja = (totalLiquido * ((100 - pctMeu) / 100)).toFixed(2);
-    
+
     html += `
                 </tbody>
             </table>
@@ -155,17 +149,17 @@ async function gerarRelatorioPNG() {
             <p style="text-align: center; font-size: 9px; color: #94a3b8; margin-top: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Gerado por Cliente Max</p>
         </div>
     `;
-    
+
     container.innerHTML = html;
-    
+
     try {
         const canvas = await html2canvas(container, {
             backgroundColor: "#ffffff",
-            scale: 3,
+            scale: 3, 
             logging: false,
             useCORS: true
         });
-        
+
         canvas.toBlob(async (blob) => {
             const dataRef = new Date().toLocaleDateString().replace(/\//g, '-');
             const file = new File([blob], `relatorio_barbearia_${dataRef}.png`, { type: 'image/png' });
@@ -195,7 +189,7 @@ async function exportarBackup() {
     const dataRef = new Date().toLocaleDateString().replace(/\//g, '-');
     const nomeArquivo = `backup_topindica_${dataRef}.json`;
     const dadosStr = JSON.stringify(db, null, 2);
-    
+
     if (navigator.share) {
         try {
             const arquivo = new File([dadosStr], nomeArquivo, { type: 'application/json' });
@@ -208,7 +202,7 @@ async function exportarBackup() {
             console.log("Compartilhamento cancelado");
         }
     }
-    
+
     const blob = new Blob([dadosStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -226,7 +220,7 @@ function importarBackup(e) {
         try {
             const dados = JSON.parse(ev.target.result);
             if (dados.atendimentos || dados.clientes) {
-                if (confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
+                if(confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
                     db = dados;
                     localStorage.setItem('barber_v6', JSON.stringify(db));
                     location.reload();

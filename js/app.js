@@ -4,6 +4,7 @@ let croppieInstance = null;
 let itemSendoEditado = null;
 
 const EXTRAS_LISTA = { "Sobrancelha": 10, "Limpeza": 15, "Pezinho": 10, "Botox": 100 };
+const CICLO_FIDELIDADE = 5; // Número de atendimentos por ciclo
 const dataAtual = new Date();
 document.getElementById('data-topo').innerText = dataAtual.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -63,7 +64,7 @@ function renderSemana() {
                 <span class="text-[10px] bg-slate-100 px-2 py-1 rounded-full font-bold">${atends.length}</span>
             </button>
             <div id="lista-dia-${idx}" class="lista-atendimentos ${idx === hoje ? 'aberta' : ''}">
-                ${atends.map((a, i_orig) => {
+                ${atends.map((a) => {
                     const idxOriginal = db.atendimentos.indexOf(a);
                     return `
                     <div class="card-atendimento ${a.pendente ? 'border-l-4 border-rose-500' : ''}">
@@ -90,13 +91,13 @@ function renderSemana() {
     document.getElementById('total-semanal').innerText = `R$ ${faturamentoTotal.toFixed(2)}`;
 }
 
-// EDITAR ATENDIMENTO (NOVA FUNÇÃO)
 function editarAtendimento(idx) {
     const atend = db.atendimentos[idx];
     itemSendoEditado = idx;
     document.getElementById('modal').classList.add('active');
     document.getElementById('modal-title').innerText = "Editar Atendimento";
     document.getElementById('btn-confirmar').innerText = "Salvar Alterações";
+    document.getElementById('btn-confirmar').style.display = '';
     
     const container = document.getElementById('campos-dinamicos');
     let htmlProds = '';
@@ -178,13 +179,11 @@ function editarAtendimento(idx) {
         
         <input type="number" id="m-total-manual" placeholder="Total Final R$" class="mt-4 font-black text-rose-600" value="${atend.totalManual || atend.total}">`;
     
-    // Aplica toggle inicial
     setTimeout(() => {
         toggleCamposPagamento();
     }, 100);
 }
 
-// NOVA FUNÇÃO AUXILIAR PARA O FORMULÁRIO DINÂMICO
 function toggleCamposPagamento() {
     const isPendente = document.getElementById('m-pendente')?.checked;
     const campoPg = document.getElementById('wrapper-pg');
@@ -205,6 +204,7 @@ function abrirModal(ehNovo = true) {
     const container = document.getElementById('campos-dinamicos');
     const btnConfirmar = document.getElementById('btn-confirmar');
     document.getElementById('modal').classList.add('active');
+    btnConfirmar.style.display = '';
     
     if (abaAtual === 'clientes') {
         document.getElementById('modal-title').innerText = ehNovo ? "Novo Registro" : "Editar Registro";
@@ -276,8 +276,6 @@ function abrirModal(ehNovo = true) {
 }
 
 async function salvarDados() {
-    const diaIdx = new Date().getDay();
-    
     if (abaAtual === 'clientes') {
         const nome = document.getElementById('m-nome').value;
         const contato = document.getElementById('m-contato').value;
@@ -339,6 +337,18 @@ async function salvarDados() {
         const totalManual = document.getElementById('m-total-manual')?.value;
         const gorjeta = parseFloat(document.getElementById('m-gorjeta')?.value) || 0;
 
+        // Preserva o dia original se for edição
+        let diaIdx;
+        let dataHora;
+        
+        if (itemSendoEditado !== null) {
+            diaIdx = db.atendimentos[itemSendoEditado].diaIndex;
+            dataHora = db.atendimentos[itemSendoEditado].dataHora;
+        } else {
+            diaIdx = new Date().getDay();
+            dataHora = new Date().toISOString();
+        }
+
         let precoBase = (diaIdx >= 1 && diaIdx <= 3) ? 30 : 35;
         let totalServ = sel.reduce((acc, s) => acc + ((s==='Corte'||s==='Barba') ? precoBase : (EXTRAS_LISTA[s]||0)), 0);
         let totalProd = 0; let pResumo = [];
@@ -358,8 +368,8 @@ async function salvarDados() {
                 servicos: sel, 
                 produtos: pResumo, 
                 total: totalFinal, 
-                diaIndex: diaIdx, 
-                dataHora: itemSendoEditado !== null ? db.atendimentos[itemSendoEditado].dataHora : new Date().toISOString(),
+                diaIndex: diaIdx,
+                dataHora: dataHora,
                 pagamento: pendente ? "PENDENTE" : pgtoRaw,
                 pendente: pendente,
                 recebedor: recebedor,
@@ -368,10 +378,8 @@ async function salvarDados() {
             };
             
             if (itemSendoEditado !== null && abaAtual === 'semanal') {
-                // EDITAR ATENDIMENTO EXISTENTE
                 db.atendimentos[itemSendoEditado] = atendimento;
             } else {
-                // NOVO ATENDIMENTO
                 db.atendimentos.push(atendimento);
             }
             
@@ -419,12 +427,20 @@ function renderClientes() {
     tagContainer.innerHTML = tags.map(t => `<button onclick="aplicarFiltroTag('${t}')" class="whitespace-nowrap px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase text-slate-500">#${t}</button>`).join('');
     l.innerHTML = db.clientes.filter(c => (c.nome + (c.tags||'')).toLowerCase().includes(f)).map(c => {
         const idx = db.clientes.indexOf(c);
-        return `<div class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center">
+        const totalAtendimentos = db.atendimentos.filter(a => a.nome.toLowerCase() === c.nome.toLowerCase()).length;
+        return `<div class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center cursor-pointer active:scale-[0.98] transition-transform" onclick="verHistorico('${c.nome.replace(/'/g, "\\'")}')">
             <div class="flex items-center gap-3">
                 ${c.foto ? `<img src="${c.foto}" class="w-12 h-12 rounded-full object-cover">` : `<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>`}
-                <div><p class="font-black text-sm uppercase">${c.nome}</p><p class="text-[10px] text-slate-400 font-bold">${c.contato || 'S/ CONTATO'}</p></div>
+                <div>
+                    <p class="font-black text-sm uppercase">${c.nome}</p>
+                    <p class="text-[10px] text-slate-400 font-bold">${c.contato || 'S/ CONTATO'}</p>
+                </div>
             </div>
-            <div class="flex gap-4"><button onclick="prepararEdicao(${idx})" class="text-slate-300"><i class="fas fa-edit"></i></button><button onclick="excluirCliente(${idx})" class="text-slate-200"><i class="fas fa-trash-alt"></i></button></div>
+            <div class="flex items-center gap-3" onclick="event.stopPropagation()">
+                <span class="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-full">${totalAtendimentos} atend.</span>
+                <button onclick="prepararEdicao(${idx})" class="text-slate-300"><i class="fas fa-edit"></i></button>
+                <button onclick="excluirCliente(${idx})" class="text-slate-200"><i class="fas fa-trash-alt"></i></button>
+            </div>
         </div>`;
     }).join('');
 }
@@ -442,9 +458,141 @@ function prepararEdicao(i) {
 
 function excluirCliente(i) { if(confirm('Excluir?')) { db.clientes.splice(i, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderClientes(); } }
 
+// ==========================================
+// HISTÓRICO DO CLIENTE COM CICLOS DE FIDELIDADE
+// ==========================================
+
+function verHistorico(nomeCliente) {
+    const atendimentosDoCliente = db.atendimentos
+        .filter(a => a.nome.toLowerCase() === nomeCliente.toLowerCase())
+        .sort((a, b) => new Date(b.dataHora) - new Date(a.dataHora));
+    
+    const container = document.getElementById('campos-dinamicos');
+    const btnConfirmar = document.getElementById('btn-confirmar');
+    
+    document.getElementById('modal').classList.add('active');
+    document.getElementById('modal-title').innerText = `📋 ${nomeCliente}`;
+    btnConfirmar.style.display = 'none';
+    
+    if (atendimentosDoCliente.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <p class="text-[12px] font-black uppercase text-slate-300">Nenhum atendimento encontrado</p>
+                <p class="text-[10px] text-slate-400 mt-2">Os atendimentos aparecerão aqui quando registrados</p>
+            </div>`;
+        return;
+    }
+    
+    const totalGasto = atendimentosDoCliente.reduce((acc, a) => acc + parseFloat(a.total), 0);
+    const totalAtendimentos = atendimentosDoCliente.length;
+    const servicosFavoritos = {};
+    atendimentosDoCliente.forEach(a => {
+        a.servicos.forEach(s => {
+            servicosFavoritos[s] = (servicosFavoritos[s] || 0) + 1;
+        });
+    });
+    const servicoTop = Object.entries(servicosFavoritos).sort((a,b) => b[1] - a[1])[0];
+    
+    // Cálculo dos ciclos de fidelidade
+    const ciclosCompletos = Math.floor(totalAtendimentos / CICLO_FIDELIDADE);
+    const progressoCicloAtual = totalAtendimentos % CICLO_FIDELIDADE;
+    const faltamParaProximo = CICLO_FIDELIDADE - progressoCicloAtual;
+    
+    function montarCard(a) {
+        const data = new Date(a.dataHora);
+        const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+        const diaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][data.getDay()];
+        
+        return `
+            <div class="bg-white p-3 rounded-xl border-l-4 ${a.pendente ? 'border-rose-500' : 'border-emerald-500'}">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-[9px] font-black uppercase text-slate-500">${diaSemana}, ${dataFormatada}</p>
+                        <p class="text-[11px] font-black uppercase mt-1">${a.servicos.join(' + ')}</p>
+                        ${a.produtos && a.produtos.length > 0 ? `<p class="text-[9px] text-blue-500 font-bold mt-1">🛍️ ${a.produtos.join(', ')}</p>` : ''}
+                        ${a.gorjeta > 0 ? `<p class="text-[9px] text-amber-500 font-bold">💵 Gorjeta: R$ ${parseFloat(a.gorjeta).toFixed(2)}</p>` : ''}
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-black text-rose-600">R$ ${a.total}</p>
+                        <p class="text-[8px] font-bold uppercase ${a.pendente ? 'text-rose-500' : 'text-emerald-500'}">${a.pendente ? '⚠️ PENDENTE' : '✅ PAGO'}</p>
+                        <p class="text-[7px] text-slate-400 mt-1">${a.pagamento || ''}</p>
+                    </div>
+                </div>
+            </div>`;
+    }
+    
+    // Mostra apenas os atendimentos do ciclo atual (limite 5)
+    const inicioCiclo = ciclosCompletos * CICLO_FIDELIDADE;
+    const fimCiclo = inicioCiclo + CICLO_FIDELIDADE;
+    const atendimentosCicloAtual = atendimentosDoCliente.slice(inicioCiclo, fimCiclo);
+    
+    let html = `
+        <div class="grid grid-cols-3 gap-2 mb-4">
+            <div class="bg-rose-50 p-3 rounded-xl text-center">
+                <p class="text-[8px] font-black uppercase text-rose-400">Atendimentos</p>
+                <p class="text-lg font-black text-rose-600">${totalAtendimentos}</p>
+            </div>
+            <div class="bg-emerald-50 p-3 rounded-xl text-center">
+                <p class="text-[8px] font-black uppercase text-emerald-400">Total Gasto</p>
+                <p class="text-lg font-black text-emerald-600">R$ ${totalGasto.toFixed(2)}</p>
+            </div>
+            <div class="bg-blue-50 p-3 rounded-xl text-center">
+                <p class="text-[8px] font-black uppercase text-blue-400">Favorito</p>
+                <p class="text-[10px] font-black text-blue-600">${servicoTop ? servicoTop[0] : 'N/A'}</p>
+            </div>
+        </div>
+        
+        <!-- Fidelidade -->
+        <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-2xl mb-4 border border-amber-200">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-black uppercase text-amber-700">🏆 Fidelidade: ${ciclosCompletos} ${ciclosCompletos === 1 ? 'ciclo' : 'ciclos'}</span>
+                ${ciclosCompletos > 0 ? `<span class="text-[8px] font-bold text-amber-500 bg-amber-100 px-2 py-1 rounded-full">${ciclosCompletos * CICLO_FIDELIDADE} atend.</span>` : ''}
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-[10px] font-black uppercase text-amber-600">📊 Ciclo atual: ${progressoCicloAtual}/${CICLO_FIDELIDADE}</span>
+                ${faltamParaProximo > 0 ? `<span class="text-[8px] text-amber-500 font-bold">(faltam ${faltamParaProximo})</span>` : '<span class="text-[8px] text-emerald-500 font-bold">🎉 Completo!</span>'}
+            </div>
+            <div class="mt-2 bg-amber-200 rounded-full h-2 overflow-hidden">
+                <div class="bg-amber-500 h-full rounded-full transition-all duration-500" style="width: ${(progressoCicloAtual / CICLO_FIDELIDADE) * 100}%"></div>
+            </div>
+        </div>
+        
+        <!-- Histórico (accordion) -->
+        <div class="bg-slate-100 rounded-2xl overflow-hidden">
+            <button onclick="toggleHistorico(this)" class="w-full p-4 flex justify-between items-center font-black uppercase text-[10px] text-slate-600 active:bg-slate-200 transition-colors">
+                <span>📜 Últimos atendimentos (${atendimentosCicloAtual.length})</span>
+                <i class="fas fa-chevron-down text-slate-400 transition-transform duration-300" id="icone-seta"></i>
+            </button>
+            <div id="historico-lista" class="hidden px-4 pb-4 space-y-2">
+                ${atendimentosCicloAtual.map(a => montarCard(a)).join('')}
+            </div>
+        </div>`;
+    
+    container.innerHTML = html;
+}
+
+function toggleHistorico(btn) {
+    const lista = document.getElementById('historico-lista');
+    const icone = document.getElementById('icone-seta');
+    
+    if (lista.classList.contains('hidden')) {
+        lista.classList.remove('hidden');
+        icone.style.transform = 'rotate(180deg)';
+    } else {
+        lista.classList.add('hidden');
+        icone.style.transform = 'rotate(0deg)';
+    }
+}
+
 function initCropper(input) { if (input.files && input.files[0]) { const reader = new FileReader(); document.getElementById('crop-container').style.display = 'block'; reader.onload = e => { if (croppieInstance) croppieInstance.destroy(); croppieInstance = new Croppie(document.getElementById('cropper-wrap'), { viewport: { width: 160, height: 160, type: 'square' }, boundary: { width: 260, height: 260 } }); croppieInstance.bind({ url: e.target.result }); }; reader.readAsDataURL(input.files[0]); } }
 function toggleDia(idx) { document.getElementById(`lista-dia-${idx}`).classList.toggle('aberta'); }
-function fecharModal() { document.getElementById('modal').classList.remove('active'); itemSendoEditado = null; if(croppieInstance) croppieInstance.destroy(); croppieInstance = null; }
+function fecharModal() { 
+    document.getElementById('modal').classList.remove('active'); 
+    document.getElementById('btn-confirmar').style.display = '';
+    itemSendoEditado = null; 
+    if(croppieInstance) croppieInstance.destroy(); 
+    croppieInstance = null; 
+}
 function removerAtend(idx) { if(confirm('Remover este atendimento?')) { db.atendimentos.splice(idx, 1); localStorage.setItem('barber_v6', JSON.stringify(db)); renderSemana(); } }
 function aplicarFiltroTag(t) { document.getElementById('filtro-cliente').value = t; renderClientes(); }
 

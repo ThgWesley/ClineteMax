@@ -17,4 +17,6 @@ input, select { width: 100%; padding: 14px; margin-top: 6px; margin-bottom: 16px
 .modal-label { font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: -4px; display: block; }
 #crop-container { width: 100%; margin-top: 10px; display: none; }
 
-nj.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.cursor-pointer { cursor: pointer; }
+.active\:scale-\[0\.98\]:active { transform: scale(0.98); }
