@@ -26,7 +26,6 @@
     <link rel="stylesheet" href="css/style.css">
     
     <style>
-        /* Estilos para a notificação de instalação do PWA */
         #install-banner {
             display: none;
             position: fixed;
@@ -40,17 +39,11 @@
             z-index: 200;
             animation: slideUp 0.3s ease;
         }
-        
-        #install-banner.show {
-            display: block;
-        }
-        
+        #install-banner.show { display: block; }
         @keyframes slideUp {
             from { transform: translateY(100px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        
-        /* Indicador de status offline */
         #offline-indicator {
             display: none;
             position: fixed;
@@ -66,10 +59,7 @@
             z-index: 300;
             text-transform: uppercase;
         }
-        
-        #offline-indicator.show {
-            display: block;
-        }
+        #offline-indicator.show { display: block; }
     </style>
 </head>
 <body>
@@ -100,26 +90,30 @@
                 <button onclick="checkForUpdates()" id="update-btn" class="bg-emerald-50 text-emerald-700 w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform hidden">
                     <i class="fas fa-sync-alt"></i>
                 </button>
-                <button onclick="abrirModal(true)" class="bg-slate-900 text-white w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform">
+                <button onclick="acaoBotaoPlus()" id="btn-plus-header" class="bg-slate-900 text-white w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform">
                     <i class="fas fa-plus"></i>
                 </button>
             </div>
         </div>
         
         <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-            <button id="nav-semanal" onclick="mudarAba('semanal', this)" class="flex-1 min-w-[85px] bg-rose-50 border-2 border-rose-500 p-3 rounded-2xl flex flex-col items-center transition-all">
+            <button id="nav-semanal" onclick="mudarAba('semanal', this)" class="flex-1 min-w-[70px] bg-rose-50 border-2 border-rose-500 p-3 rounded-2xl flex flex-col items-center transition-all">
                 <i class="fas fa-calendar-alt text-rose-600 mb-1"></i>
                 <span class="text-[9px] font-black uppercase text-rose-600">Agenda</span>
             </button>
-            <button id="nav-clientes" onclick="mudarAba('clientes', this)" class="flex-1 min-w-[85px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+            <button id="nav-clientes" onclick="mudarAba('clientes', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
                 <i class="fas fa-users mb-1"></i>
                 <span class="text-[9px] font-black uppercase">Clientes</span>
             </button>
-            <button id="nav-produtos" onclick="mudarAba('produtos', this)" class="flex-1 min-w-[85px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+            <button id="nav-servicos" onclick="mudarAba('servicos', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+                <i class="fas fa-star mb-1"></i>
+                <span class="text-[9px] font-black uppercase">Serviços</span>
+            </button>
+            <button id="nav-produtos" onclick="mudarAba('produtos', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
                 <i class="fas fa-box-open mb-1"></i>
                 <span class="text-[9px] font-black uppercase">Produtos</span>
             </button>
-            <button id="nav-ajustes" onclick="mudarAba('ajustes', this)" class="flex-1 min-w-[85px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+            <button id="nav-ajustes" onclick="mudarAba('ajustes', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
                 <i class="fas fa-cog mb-1"></i>
                 <span class="text-[9px] font-black uppercase">Ajustes</span>
             </button>
@@ -132,19 +126,28 @@
     </header>
 
     <main class="p-4">
+        <!-- Aba Semanal -->
         <section id="tab-semanal" class="space-y-2"></section>
         
+        <!-- Aba Clientes -->
         <section id="tab-clientes" class="hidden">
             <input type="text" id="filtro-cliente" onkeyup="renderClientes()" placeholder="Procurar cliente ou tag..." class="mb-2 w-full p-4 rounded-xl border">
             <div id="container-tags" class="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar"></div>
             <div id="lista-clientes" class="grid gap-3"></div>
         </section>
         
+        <!-- Aba Serviços Extras -->
+        <section id="tab-servicos" class="hidden">
+            <div id="lista-servicos" class="grid gap-3"></div>
+        </section>
+        
+        <!-- Aba Produtos -->
         <section id="tab-produtos" class="hidden">
             <input type="text" id="filtro-produto" onkeyup="renderProdutos()" placeholder="Procurar produto..." class="mb-4 w-full p-4 rounded-xl border">
             <div id="lista-produtos" class="grid gap-3"></div>
         </section>
 
+        <!-- Aba Ajustes -->
         <section id="tab-ajustes" class="hidden space-y-4">
             <div class="bg-slate-900 p-6 rounded-3xl text-white shadow-xl">
                 <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
@@ -201,6 +204,7 @@
 
     <div id="relatorio-temp" style="position: absolute; left: -9999px; width: 400px; background: white; padding: 20px; border-radius: 20px;"></div>
 
+    <!-- Modal -->
     <div id="modal">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-6">
@@ -208,31 +212,33 @@
                 <button onclick="fecharModal()"><i class="fas fa-times-circle text-2xl text-slate-200"></i></button>
             </div>
             <div id="campos-dinamicos"></div>
-            <button id="btn-confirmar" onclick="salvarDados()" class="w-full bg-rose-600 text-white py-4 rounded-2xl font-black uppercase mt-6">Confirmar</button>
+            <button id="btn-confirmar" onclick="salvarDados()">Confirmar</button>
         </div>
     </div>
 
-    <!-- Scripts da Aplicação -->
+    <!-- Scripts da Aplicação (ORDEM CORRETA) -->
+    <script src="js/database.js"></script>
+    <script src="js/servicos.js"></script>
+    <script src="js/produtos.js"></script>
+    <script src="js/clientes.js"></script>
+    <script src="js/agenda.js"></script>
+    <script src="js/atendimento.js"></script>
     <script src="js/app.js"></script>
     <script src="js/utils.js"></script>
     
     <!-- Script PWA -->
     <script>
-        // Variáveis para instalação do PWA
         let deferredPrompt;
         let installBanner = document.getElementById('install-banner');
         let updateButton = document.getElementById('update-btn');
         let registration;
 
-        // Registro do Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/ClineteMax/js/service-worker.js')
                     .then(reg => {
                         registration = reg;
                         console.log('✅ Service Worker registrado:', reg.scope);
-                        
-                        // Verifica updates
                         reg.addEventListener('updatefound', () => {
                             const newWorker = reg.installing;
                             newWorker.addEventListener('statechange', () => {
@@ -243,43 +249,34 @@
                             });
                         });
                     })
-                    .catch(error => {
-                        console.log('❌ Erro no Service Worker:', error);
-                    });
+                    .catch(error => console.log('❌ Erro no Service Worker:', error));
             });
         }
 
-        // Detecta se pode ser instalado
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
             installBanner.classList.add('show');
         });
 
-        // Detecta quando foi instalado
         window.addEventListener('appinstalled', () => {
             console.log('✅ App instalado com sucesso!');
             installBanner.classList.remove('show');
             deferredPrompt = null;
         });
 
-        // Funções do PWA
         function installPWA() {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then(choiceResult => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('👍 Usuário instalou o app');
-                    }
+                    if (choiceResult.outcome === 'accepted') console.log('👍 Usuário instalou o app');
                     deferredPrompt = null;
                     installBanner.classList.remove('show');
                 });
             }
         }
 
-        function dismissInstall() {
-            installBanner.classList.remove('show');
-        }
+        function dismissInstall() { installBanner.classList.remove('show'); }
 
         function checkForUpdates() {
             if (registration) {
@@ -291,9 +288,7 @@
 
         function limparCache() {
             if ('caches' in window) {
-                caches.keys().then(names => {
-                    names.forEach(name => caches.delete(name));
-                });
+                caches.keys().then(names => { names.forEach(name => caches.delete(name)); });
                 alert('✅ Cache limpo! O app será recarregado.');
                 setTimeout(() => location.reload(), 500);
             }
@@ -313,38 +308,23 @@
                         });
                     }
                 });
-            } else {
-                alert('Notificações não suportadas neste navegador');
-            }
+            } else { alert('Notificações não suportadas neste navegador'); }
         }
 
-        // Monitor de conectividade
         function updateOnlineStatus() {
             const indicator = document.getElementById('offline-indicator');
-            if (navigator.onLine) {
-                indicator.classList.remove('show');
-                console.log('🟢 Online');
-            } else {
-                indicator.classList.add('show');
-                console.log('🔴 Offline');
-            }
+            if (navigator.onLine) { indicator.classList.remove('show'); }
+            else { indicator.classList.add('show'); }
         }
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
-        
-        // Status inicial
         updateOnlineStatus();
 
-        // Atualiza status do PWA no painel de ajustes
         function atualizarStatusPWA() {
             const statusElement = document.getElementById('pwa-status');
             if (statusElement) {
-                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-                const isInstalled = window.matchMedia('(display-mode: standalone)').matches || 
-                                   navigator.standalone || 
-                                   document.referrer.includes('android-app://');
-                
+                const isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone || document.referrer.includes('android-app://');
                 if (isInstalled) {
                     statusElement.textContent = '✅ App Instalado - Modo Nativo';
                     statusElement.className = 'text-[10px] font-black uppercase text-emerald-500';
@@ -358,34 +338,24 @@
             }
         }
 
-        // Monitora mudanças no modo de exibição
         window.matchMedia('(display-mode: standalone)').addEventListener('change', atualizarStatusPWA);
-        
-        // Atualiza a cada 5 segundos
         setInterval(atualizarStatusPWA, 5000);
         document.addEventListener('DOMContentLoaded', atualizarStatusPWA);
 
-        // Adiciona gestos de navegação
+        // Gestos de navegação
         let touchStartX = 0;
-        document.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-        });
-
+        document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
         document.addEventListener('touchend', (e) => {
             const touchEndX = e.changedTouches[0].clientX;
             const diff = touchStartX - touchEndX;
-            
             if (Math.abs(diff) > 80) {
-                const abas = ['semanal', 'clientes', 'produtos', 'ajustes'];
+                const abas = ['semanal', 'clientes', 'servicos', 'produtos', 'ajustes'];
                 const currentIndex = abas.indexOf(abaAtual);
-                
                 if (diff > 0 && currentIndex < abas.length - 1) {
-                    // Swipe esquerda - próxima aba
                     const nextAba = abas[currentIndex + 1];
                     const nextBtn = document.getElementById(`nav-${nextAba}`);
                     mudarAba(nextAba, nextBtn);
                 } else if (diff < 0 && currentIndex > 0) {
-                    // Swipe direita - aba anterior
                     const prevAba = abas[currentIndex - 1];
                     const prevBtn = document.getElementById(`nav-${prevAba}`);
                     mudarAba(prevAba, prevBtn);

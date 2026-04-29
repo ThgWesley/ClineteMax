@@ -6,7 +6,7 @@ function salvarPorcentagem(valor) {
     if (isNaN(num) || num < 0) num = 0;
     if (num > 100) num = 100;
     db.minhaParte = num;
-    localStorage.setItem('barber_v6', JSON.stringify(db));
+    salvarDB();
     renderAjustes(); 
 }
 
@@ -21,7 +21,6 @@ function renderAjustes() {
     const mePercentage = parseFloat(db.minhaParte) / 100;
     const storePercentage = 1 - mePercentage;
     
-    // Calcula totais separados (apenas pagos)
     let totalServicosPagos = 0;
     let totalProdutosPagos = 0;
     let totalGorjetas = 0;
@@ -29,7 +28,6 @@ function renderAjustes() {
     db.atendimentos.forEach(a => {
         if (a.pendente) return;
         
-        // Produtos com preços atuais
         let totalProd = 0;
         if (a.produtos && a.produtos.length > 0) {
             a.produtos.forEach(p => {
@@ -41,8 +39,6 @@ function renderAjustes() {
         
         const gorjeta = parseFloat(a.gorjeta || 0);
         const totalAtend = parseFloat(a.total || 0);
-        
-        // Serviços = Total - Produtos - Gorjeta
         const servicos = totalAtend - totalProd - gorjeta;
         
         totalServicosPagos += servicos;
@@ -50,7 +46,6 @@ function renderAjustes() {
         totalGorjetas += gorjeta;
     });
     
-    // Divisão APENAS sobre serviços
     const totalParaDividir = totalServicosPagos;
     const meuLucro  = (totalParaDividir * mePercentage) + totalGorjetas;
     const caixaLoja = (totalParaDividir * storePercentage) + totalProdutosPagos;
@@ -97,7 +92,6 @@ async function gerarRelatorioPNG() {
         .filter(a => new Date(a.dataHora || 0) >= limiteData)
         .sort((a, b) => new Date(b.dataHora) - new Date(a.dataHora));
     
-    // Agrupa por dia
     const diasSemana = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
     const agrupado = {};
     
@@ -107,9 +101,7 @@ async function gerarRelatorioPNG() {
         const diaSemana = diasSemana[data.getDay()];
         const diaCompleto = `${diaSemana.substring(0, 3).toUpperCase()} ${chave}`;
         
-        if (!agrupado[diaCompleto]) {
-            agrupado[diaCompleto] = [];
-        }
+        if (!agrupado[diaCompleto]) agrupado[diaCompleto] = [];
         agrupado[diaCompleto].push(a);
     });
     
@@ -121,7 +113,6 @@ async function gerarRelatorioPNG() {
             </div>
     `;
     
-    // Renderiza cada dia
     Object.keys(agrupado).forEach(dia => {
         const atends = agrupado[dia];
         let totalDia = 0;
@@ -138,7 +129,6 @@ async function gerarRelatorioPNG() {
             let gorjeta = parseFloat(a.gorjeta || 0);
             let barbeiroValor = parseFloat(a.barbeiroValor || 0);
             
-            // Produtos com preços atuais
             let totalProd = 0;
             let produtosTexto = '';
             if (a.produtos && a.produtos.length > 0) {
@@ -164,7 +154,6 @@ async function gerarRelatorioPNG() {
             
             totalDia += totalAtend;
             
-            // Status com recebedor (só se informado)
             const temRecebedor = a.recebedor && a.recebedor !== 'Não informado';
             const statusLinha = a.pendente 
                 ? `⚠️ PENDENTE${temRecebedor ? ` • Com: ${a.recebedor}` : ''}`
@@ -313,7 +302,7 @@ function importarBackup(e) {
             if (dados.atendimentos || dados.clientes) {
                 if(confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
                     db = dados;
-                    localStorage.setItem('barber_v6', JSON.stringify(db));
+                    salvarDB();
                     location.reload();
                 }
             } else {
