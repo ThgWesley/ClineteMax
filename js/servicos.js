@@ -4,7 +4,8 @@
 
 function renderServicosExtras() {
     const l = document.getElementById('lista-servicos');
-    const servicos = db.servicosExtras || [];
+    if (!db.servicosExtras) db.servicosExtras = [];
+    const servicos = db.servicosExtras;
     
     l.innerHTML = servicos.map((s, i) => `
         <div class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center">
@@ -22,23 +23,49 @@ function renderServicosExtras() {
 
 function modalServico(ehNovo) {
     if (ehNovo) itemSendoEditado = null;
-    
-    const container = document.getElementById('campos-dinamicos');
-    const btnConfirmar = document.getElementById('btn-confirmar');
+    abaAtual = 'servicos';
     
     document.getElementById('modal').classList.add('active');
     document.body.style.overflow = 'hidden';
     document.getElementById('modal-title').innerText = ehNovo ? "Novo Serviço Extra" : "Editar Serviço Extra";
+    
+    const btnConfirmar = document.getElementById('btn-confirmar');
     btnConfirmar.innerText = "Salvar Serviço";
     btnConfirmar.style.display = '';
+    btnConfirmar.setAttribute('onclick', 'salvarServicoExtra()');
     
-    container.innerHTML = `
+    document.getElementById('campos-dinamicos').innerHTML = `
         <label class="modal-label">Nome do Serviço</label>
         <input type="text" id="s-nome" placeholder="Ex: Limpeza de Pele">
         <label class="modal-label">Valor R$</label>
         <input type="number" id="s-valor" placeholder="Ex: 80.00" step="0.01">`;
+}
+
+function salvarServicoExtra() {
+    const nome = document.getElementById('s-nome')?.value;
+    const valor = parseFloat(document.getElementById('s-valor')?.value) || 0;
     
-    abaAtual = 'servicos';
+    if (!nome || nome.trim() === '') {
+        alert('Digite o nome do serviço');
+        return;
+    }
+    
+    // Garante que o array existe
+    if (!db.servicosExtras) {
+        db.servicosExtras = [];
+    }
+    
+    const novo = { nome: nome.trim(), valor: valor };
+    
+    if (itemSendoEditado !== null && itemSendoEditado !== undefined) {
+        db.servicosExtras[itemSendoEditado] = novo;
+    } else {
+        db.servicosExtras.push(novo);
+    }
+    
+    salvarDB();
+    fecharModal();
+    renderServicosExtras();
 }
 
 function toggleExtrasAccordion() {
@@ -55,11 +82,11 @@ function editarServico(i) {
     setTimeout(() => {
         document.getElementById('s-nome').value = s.nome;
         document.getElementById('s-valor').value = s.valor;
-    }, 50);
+    }, 100);
 }
 
 function excluirServico(i) {
-    if (confirm('Excluir este serviço extra?')) {
+    if(confirm('Excluir este serviço extra?')) {
         db.servicosExtras.splice(i, 1);
         salvarDB();
         renderServicosExtras();

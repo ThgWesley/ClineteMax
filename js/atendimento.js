@@ -163,22 +163,6 @@ async function salvarDados() {
             abaAtual = 'clientes';
             renderClientes();
         }
-    } else if (abaAtual === 'servicos') {
-        const nome = document.getElementById('s-nome').value;
-        const valor = parseFloat(document.getElementById('s-valor').value) || 0;
-        
-        if (nome) {
-            const d = { nome, valor };
-            if (itemSendoEditado !== null) {
-                db.servicosExtras[itemSendoEditado] = d;
-            } else {
-                db.servicosExtras.push(d);
-            }
-            salvarDB();
-            fecharModal();
-            abaAtual = 'servicos';
-            renderServicosExtras();
-        }
     } else if (abaAtual === 'produtos') {
         const nome = document.getElementById('p-nome').value;
         const valor = document.getElementById('p-valor').value;

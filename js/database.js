@@ -5,7 +5,8 @@ let db = JSON.parse(localStorage.getItem('barber_v6')) || { clientes: [], atendi
 
 // Migra EXTRAS_ANTIGOS para db.servicosExtras (primeira execução)
 const EXTRAS_ANTIGOS = { "Sobrancelha": 10, "Limpeza": 15, "Pezinho": 10, "Botox": 100 };
-if (db.servicosExtras && db.servicosExtras.length === 0) {
+if (!db.servicosExtras) db.servicosExtras = [];
+if (db.servicosExtras.length === 0) {
     Object.keys(EXTRAS_ANTIGOS).forEach(nome => {
         db.servicosExtras.push({ nome, valor: EXTRAS_ANTIGOS[nome] });
     });
