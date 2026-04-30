@@ -75,127 +75,60 @@ function editarAtendimento(idx) {
 }
 
 function abrirModalEdicao(atend) {
+    document.body.classList.add('modal-aberto');
     document.getElementById('modal').classList.add('active');
     document.getElementById('modal-title').innerText = "Editar Atendimento";
     document.getElementById('btn-confirmar').innerText = "Salvar Alterações";
     document.getElementById('btn-confirmar').style.display = '';
-    document.body.style.overflow = 'hidden';
     
     const container = document.getElementById('campos-dinamicos');
     const cliente = db.clientes.find(c => c.nome.toLowerCase() === atend.nome.toLowerCase());
-    const fotoCliente = cliente?.foto || '';
+    const fotoCliente = cliente ? cliente.foto : '';
     
-    // Produtos
     let htmlProds = '';
     if (db.produtos && db.produtos.length > 0) {
-        htmlProds = `
-            <p class="text-[10px] font-black uppercase text-blue-500 mt-4 mb-2">Produtos Vendidos</p>
-            <div class="grid grid-cols-3 gap-2">
-                ${db.produtos.map((p, i) => {
-                    const produtoNoAtend = atend.produtos ? atend.produtos.find(pr => pr.nome === p.nome) : null;
-                    let qty = 1;
-                    let checked = '';
-                    if (produtoNoAtend) {
-                        checked = 'checked';
-                        qty = produtoNoAtend.qtd;
-                    }
-                    return `
-                    <div class="flex flex-col">
-                        <input type="checkbox" id="prod-${i}" name="prod" value="${p.nome}" class="service-chip" ${checked}>
-                        <label for="prod-${i}" class="service-label">${p.nome.toUpperCase()}</label>
-                        <div class="qty-wrapper" style="${checked ? 'display:flex' : ''}">
-                            <input type="number" id="qty-prod-${i}" value="${qty}" min="1" class="qty-input">
-                        </div>
-                    </div>`;
-                }).join('')}
-            </div>`;
+        htmlProds = '<p class="text-[10px] font-black uppercase text-blue-500 mt-4 mb-2">Produtos Vendidos</p><div class="grid grid-cols-3 gap-2">';
+        db.produtos.forEach(function(p, i) {
+            var produtoNoAtend = null;
+            var qty = 1;
+            var checked = '';
+            if (atend.produtos) {
+                produtoNoAtend = atend.produtos.find(function(pr) { return pr.nome === p.nome; });
+            }
+            if (produtoNoAtend) {
+                checked = 'checked';
+                qty = produtoNoAtend.qtd;
+            }
+            htmlProds += '<div class="flex flex-col"><input type="checkbox" id="prod-' + i + '" name="prod" value="' + p.nome + '" class="service-chip" ' + checked + '><label for="prod-' + i + '" class="service-label">' + p.nome.toUpperCase() + '</label><div class="qty-wrapper" style="' + (checked ? 'display:flex' : '') + '"><input type="number" id="qty-prod-' + i + '" value="' + qty + '" min="1" class="qty-input"></div></div>';
+        });
+        htmlProds += '</div>';
     }
     
-    // Serviços marcados
-    const servicosMarcados = {};
-    ['Corte', 'Barba'].forEach(s => {
+    var servicosMarcados = {};
+    ['Corte', 'Barba'].forEach(function(s) {
         servicosMarcados[s] = atend.servicos.includes(s) ? 'checked' : '';
     });
     
-    // Extras HTML
-    let htmlExtras = '';
+    var htmlExtras = '';
     if (db.servicosExtras && db.servicosExtras.length > 0) {
-        const temExtraMarcado = db.servicosExtras.some(s => atend.servicos.includes(s.nome));
-        htmlExtras = `
-            <div class="card-extras">
-                <button type="button" onclick="toggleExtrasAccordion()" class="card-extras-header">
-                    <span>📦 Serviços Extras</span>
-                    <i class="fas fa-chevron-down icone-seta ${temExtraMarcado ? 'girado' : ''}" id="icone-seta-extras"></i>
-                </button>
-                <div class="card-extras-body ${temExtraMarcado ? 'aberto' : ''}" id="extras-body-edicao">
-                    <div class="grid grid-cols-2 gap-2">
-                        ${db.servicosExtras.map((s, i) => `
-                            <div class="flex flex-col">
-                                <input type="checkbox" id="ext-${i}" name="serv" value="${s.nome}" class="service-chip" ${atend.servicos.includes(s.nome) ? 'checked' : ''}>
-                                <label for="ext-${i}" class="service-label">${s.nome.toUpperCase()}</label>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>`;
+        var temExtraMarcado = db.servicosExtras.some(function(s) { return atend.servicos.includes(s.nome); });
+        htmlExtras = '<div class="card-extras"><button type="button" onclick="toggleExtrasAccordion()" class="card-extras-header"><span>📦 Serviços Extras</span><i class="fas fa-chevron-down icone-seta ' + (temExtraMarcado ? 'girado' : '') + '" id="icone-seta-extras"></i></button><div class="card-extras-body ' + (temExtraMarcado ? 'aberto' : '') + '" id="extras-body-edicao"><div class="grid grid-cols-2 gap-2">';
+        db.servicosExtras.forEach(function(s, i) {
+            htmlExtras += '<div class="flex flex-col"><input type="checkbox" id="ext-' + i + '" name="serv" value="' + s.nome + '" class="service-chip" ' + (atend.servicos.includes(s.nome) ? 'checked' : '') + '><label for="ext-' + i + '" class="service-label">' + s.nome.toUpperCase() + '</label></div>';
+        });
+        htmlExtras += '</div></div></div>';
     }
     
-    container.innerHTML = `
-        <div class="flex items-center gap-3 mb-4">
-            ${fotoCliente ? `<img src="${fotoCliente}" class="w-12 h-12 rounded-full object-cover border-2 border-rose-200">` : '<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>'}
-            <div class="flex-1 relative">
-                <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" value="${atend.nome}" onkeyup="filtrarClientesDropdown(this.value)" onfocus="filtrarClientesDropdown(this.value)" class="font-black text-sm">
-                <div id="dropdown-clientes" class="hidden"></div>
-            </div>
-        </div>
-        <datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist>
-        
-        <p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p>
-        <div class="grid grid-cols-2 gap-2">
-            <input type="checkbox" id="s-c" name="serv" value="Corte" class="service-chip" ${servicosMarcados['Corte']}>
-            <label for="s-c" class="service-label">CORTE</label>
-            <input type="checkbox" id="s-b" name="serv" value="Barba" class="service-chip" ${servicosMarcados['Barba']}>
-            <label for="s-b" class="service-label">BARBA</label>
-        </div>
-        
-        ${htmlExtras}
-        ${htmlProds}
-        
-        <div class="card-pagamento">
-            <span class="card-titulo">💳 Forma de Pagamento</span>
-            <div class="flex gap-2">
-                <select id="m-pg" class="flex-1" style="margin-bottom:0">
-                    <option ${atend.pagamento === 'Pix' ? 'selected' : ''}>Pix</option>
-                    <option ${atend.pagamento === 'Dinheiro' ? 'selected' : ''}>Dinheiro</option>
-                    <option ${atend.pagamento === 'Cartão' ? 'selected' : ''}>Cartão</option>
-                </select>
-                <input type="number" id="m-desc" placeholder="Desconto R$" class="w-28" value="${atend.desconto || 0}" style="margin-bottom:0">
-            </div>
-        </div>
-        
-        <div class="card-pendente">
-            <span class="card-titulo">⚠️ Pagamento Pendente</span>
-            <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" value="${atend.recebedor || ''}" style="margin-bottom:0">
-        </div>
-        
-        <div class="card-barbeiro">
-            <span class="card-titulo">+ Barbeiro</span>
-            <div class="flex gap-2">
-                <input type="text" id="m-barbeiro-nome" placeholder="Nome" class="flex-1" value="${atend.barbeiroNome || ''}" style="margin-bottom:0">
-                <input type="number" id="m-barbeiro-valor" placeholder="R$ 0,00" class="w-28" value="${atend.barbeiroValor || ''}" step="0.01" style="margin-bottom:0">
-            </div>
-            <p class="card-descricao">Valor de outro barbeiro que está com você</p>
-        </div>
-        
-        <div class="card-gorjeta">
-            <span class="card-titulo">💵 Gorjeta (Sua Parte)</span>
-            <input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full" value="${atend.gorjeta || ''}" step="0.01" style="margin-bottom:0">
-            <p class="card-descricao">Este valor é 100% seu, não divide com a loja</p>
-        </div>`;
+    var clientesOptions = '';
+    db.clientes.forEach(function(c) {
+        clientesOptions += '<option value="' + c.nome + '">';
+    });
+    
+    container.innerHTML = '<div class="flex items-center gap-3 mb-4">' + (fotoCliente ? '<img src="' + fotoCliente + '" class="w-12 h-12 rounded-full object-cover border-2 border-rose-200">' : '<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>') + '<div class="flex-1 relative"><input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" value="' + atend.nome + '" onkeyup="filtrarClientesDropdown(this.value)" onfocus="filtrarClientesDropdown(this.value)" class="font-black text-sm"><div id="dropdown-clientes" class="hidden"></div></div></div><datalist id="clientes-list">' + clientesOptions + '</datalist><p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p><div class="grid grid-cols-2 gap-2"><input type="checkbox" id="s-c" name="serv" value="Corte" class="service-chip" ' + servicosMarcados['Corte'] + '><label for="s-c" class="service-label">CORTE</label><input type="checkbox" id="s-b" name="serv" value="Barba" class="service-chip" ' + servicosMarcados['Barba'] + '><label for="s-b" class="service-label">BARBA</label></div>' + htmlExtras + htmlProds + '<div class="card-pagamento"><span class="card-titulo">💳 Forma de Pagamento</span><div class="flex gap-2"><select id="m-pg" class="flex-1" style="margin-bottom:0"><option ' + (atend.pagamento === 'Pix' ? 'selected' : '') + '>Pix</option><option ' + (atend.pagamento === 'Dinheiro' ? 'selected' : '') + '>Dinheiro</option><option ' + (atend.pagamento === 'Cartão' ? 'selected' : '') + '>Cartão</option></select><input type="number" id="m-desc" placeholder="Desconto R$" class="w-28" value="' + (atend.desconto || 0) + '" style="margin-bottom:0"></div></div><div class="card-pendente"><span class="card-titulo">⚠️ Pagamento Pendente</span><input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" value="' + (atend.recebedor || '') + '" style="margin-bottom:0"></div><div class="card-barbeiro"><span class="card-titulo">+ Barbeiro</span><div class="flex gap-2"><input type="text" id="m-barbeiro-nome" placeholder="Nome" class="flex-1" value="' + (atend.barbeiroNome || '') + '" style="margin-bottom:0"><input type="number" id="m-barbeiro-valor" placeholder="R$ 0,00" class="w-28" value="' + (atend.barbeiroValor || '') + '" step="0.01" style="margin-bottom:0"></div><p class="card-descricao">Valor de outro barbeiro que está com você</p></div><div class="card-gorjeta"><span class="card-titulo">💵 Gorjeta (Sua Parte)</span><input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full" value="' + (atend.gorjeta || '') + '" step="0.01" style="margin-bottom:0"><p class="card-descricao">Este valor é 100% seu, não divide com a loja</p></div>';
 }
 
 function toggleDia(idx) { 
-    document.getElementById(`lista-dia-${idx}`).classList.toggle('aberta'); 
+    document.getElementById('lista-dia-' + idx).classList.toggle('aberta'); 
 }
 
 function removerAtend(idx) { 

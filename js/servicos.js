@@ -26,7 +26,6 @@ function modalServico(ehNovo) {
     abaAtual = 'servicos';
     
     document.getElementById('modal').classList.add('active');
-    document.body.style.overflow = 'hidden';
     document.getElementById('modal-title').innerText = ehNovo ? "Novo Serviço Extra" : "Editar Serviço Extra";
     
     const btnConfirmar = document.getElementById('btn-confirmar');

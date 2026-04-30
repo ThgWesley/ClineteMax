@@ -5,10 +5,12 @@
 function abrirModal(ehNovo = true) {
     if (ehNovo) itemSendoEditado = null;
     
+    // Trava scroll e toques
+    document.body.classList.add('modal-aberto');
+    
     const container = document.getElementById('campos-dinamicos');
     const btnConfirmar = document.getElementById('btn-confirmar');
     document.getElementById('modal').classList.add('active');
-    document.body.style.overflow = 'hidden';
     btnConfirmar.style.display = '';
     
     if (abaAtual === 'clientes') {
@@ -201,7 +203,6 @@ async function salvarDados() {
         const barbeiroNome = document.getElementById('m-barbeiro-nome')?.value || '';
         const barbeiroValor = parseFloat(document.getElementById('m-barbeiro-valor')?.value) || 0;
         
-        // Pendente = tem recebedor preenchido
         const pendente = recebedor.trim().length > 0;
 
         let diaIdx;
@@ -217,7 +218,6 @@ async function salvarDados() {
 
         let precoBase = (diaIdx >= 1 && diaIdx <= 3) ? 30 : 35;
         
-        // Calcula serviços principais
         let totalServ = 0;
         sel.forEach(s => {
             if (s === 'Corte' || s === 'Barba') {
@@ -228,7 +228,6 @@ async function salvarDados() {
             }
         });
         
-        // Produtos (salva nome e qtd, preço dinâmico)
         let produtosSalvos = [];
         let totalProd = 0;
         prodsChecked.forEach(p => {
@@ -288,11 +287,10 @@ function initCropper(input) {
     } 
 }
 
-function fecharModal() { 
-    document.getElementById('modal').classList.remove('active'); 
+function fecharModal() {
+    document.body.classList.remove('modal-aberto');
+    document.getElementById('modal').classList.remove('active');
     document.getElementById('btn-confirmar').style.display = '';
-    document.body.style.overflow = '';
-    itemSendoEditado = null; 
-    if(croppieInstance) croppieInstance.destroy(); 
-    croppieInstance = null; 
+    itemSendoEditado = null;
+    croppieInstance = null;
 }

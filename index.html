@@ -348,6 +348,7 @@
         document.addEventListener('touchend', (e) => {
             const touchEndX = e.changedTouches[0].clientX;
             const diff = touchStartX - touchEndX;
+            if (document.getElementById('modal').classList.contains('active')) return;
             if (Math.abs(diff) > 80) {
                 const abas = ['semanal', 'clientes', 'servicos', 'produtos', 'ajustes'];
                 const currentIndex = abas.indexOf(abaAtual);
@@ -362,6 +363,11 @@
                 }
             }
         });
+
+        // Bloquear swipe do modal de subir pro document
+        const modalEl = document.getElementById('modal');
+        modalEl.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+        modalEl.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
 
         console.log('🚀 Barber Pro Elite PWA inicializado com sucesso!');
         console.log('✂️ Pronto para instalação na tela inicial');

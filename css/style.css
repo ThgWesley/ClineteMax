@@ -7,7 +7,9 @@ body {
     padding-bottom: 40px; 
 }
 
-/* Modal - Fundo escuro com scroll travado */
+body.modal-open { 
+    overflow: hidden !important; 
+}
 #modal { 
     position: fixed; 
     top: 0; 
@@ -21,7 +23,8 @@ body {
     z-index: 100; 
     backdrop-filter: blur(8px);
     overflow-y: auto; 
-    -webkit-overflow-scrolling: touch; 
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
 }
 
 #modal.active { 
