@@ -94,4 +94,5 @@ document.addEventListener('click', function(e) {
 // ==========================================
 // INICIALIZAÇÃO
 // ==========================================
+verificarResetSemanal();
 renderSemana();
