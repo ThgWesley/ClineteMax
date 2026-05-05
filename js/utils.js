@@ -11,6 +11,9 @@ function salvarPorcentagem(valor) {
 }
 
 function renderAjustes() {
+    // Atualizar status do backup assim que abre ajustes
+    setTimeout(() => atualizarStatusBackup(), 100);
+    
     if (db.minhaParte === undefined || db.minhaParte === null) {
         db.minhaParte = 60;
     }
@@ -155,9 +158,10 @@ async function gerarRelatorioPNG() {
             totalDia += totalAtend;
             
             const temRecebedor = a.recebedor && a.recebedor !== 'Não informado';
+            const formaPagamento = a.pagamento && !a.pendente ? ` • 💳 ${a.pagamento}` : '';
             const statusLinha = a.pendente 
                 ? `⚠️ PENDENTE${temRecebedor ? ` • Com: ${a.recebedor}` : ''}`
-                : `✅ PAGO${temRecebedor ? ` • Recebido por: ${a.recebedor}` : ''}`;
+                : `✅ PAGO${temRecebedor ? ` • Recebido por: ${a.recebedor}` : ''}${formaPagamento}`;
             
             html += `
                 <div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9; font-size: 9px;">

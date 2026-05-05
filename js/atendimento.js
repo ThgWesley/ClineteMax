@@ -111,13 +111,30 @@ function abrirModal(ehNovo = true) {
                         <option>Dinheiro</option>
                         <option>Cartão</option>
                     </select>
-                    <input type="number" id="m-desc" placeholder="Desconto R$" class="w-28" value="0" style="margin-bottom:0">
                 </div>
             </div>
             
-            <div class="card-pendente">
-                <span class="card-titulo">⚠️ Pagamento Pendente</span>
-                <input type="text" id="m-recebedor" placeholder="Com quem ficou o dinheiro?" style="margin-bottom:0">
+            <div class="card-pagamento">
+                <span class="card-titulo">💰 Valor Personalizado</span>
+                <div class="flex gap-2">
+                    <input type="number" id="m-valor-custom" placeholder="Deixe em branco para cálculo automático" class="flex-1" step="0.01" style="margin-bottom:0">
+                    <div style="font-size: 11px; color: #64748b; padding: 8px; background: #f1f5f9; border-radius: 8px; min-width: 120px; display: flex; align-items: center; justify-content: center;">
+                        <span id="total-preview">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-pagamento">
+                <span class="card-titulo">🏷️ Desconto (Se sem valor personalizado)</span>
+                <input type="number" id="m-desc" placeholder="Desconto R$" class="w-full" value="0" step="0.01" style="margin-bottom:0" onchange="atualizarPreview()">
+            </div>
+            
+            <div class="card-barbeiro" style="background: #fee2e2; border-left: 4px solid #e11d48;">
+                <span class="card-titulo" style="color: #e11d48;">⚠️ Pagamento Pendente</span>
+                <div class="flex gap-2">
+                    <input type="text" id="m-recebedor" placeholder="Nome" class="flex-1" style="margin-bottom:0">
+                    <input type="number" id="m-recebedor-valor" placeholder="R$ 0,00" class="w-28" step="0.01" style="margin-bottom:0">
+                </div>
             </div>
             
             <div class="card-barbeiro">
@@ -134,6 +151,49 @@ function abrirModal(ehNovo = true) {
                 <input type="number" id="m-gorjeta" placeholder="R$ 0,00" class="w-full" step="0.01" style="margin-bottom:0">
                 <p class="card-descricao">Este valor é 100% seu, não divide com a loja</p>
             </div>`;
+    }
+}
+
+// ==========================================
+// FUNÇÃO PARA ATUALIZAR PREVIEW DO TOTAL
+// ==========================================
+function atualizarPreview() {
+    const sel = Array.from(document.querySelectorAll('input[name="serv"]:checked')).map(i => i.value);
+    const prodsChecked = Array.from(document.querySelectorAll('input[name="prod"]:checked'));
+    const valorCustomizado = parseFloat(document.getElementById('m-valor-custom')?.value) || null;
+    const desc = parseFloat(document.getElementById('m-desc')?.value) || 0;
+    
+    let diaIdx = new Date().getDay();
+    let precoBase = (diaIdx >= 1 && diaIdx <= 3) ? 30 : 35;
+    
+    let totalServ = 0;
+    sel.forEach(s => {
+        if (s === 'Corte' || s === 'Barba') {
+            totalServ += precoBase;
+        } else {
+            const extra = (db.servicosExtras || []).find(e => e.nome === s);
+            if (extra) totalServ += parseFloat(extra.valor || 0);
+        }
+    });
+    
+    let totalProd = 0;
+    prodsChecked.forEach(p => {
+        const q = parseInt(document.getElementById(`qty-prod-${p.id.split('-')[1]}`)?.value) || 1;
+        const produtoAtual = db.produtos.find(prod => prod.nome === p.value);
+        const preco = produtoAtual ? parseFloat(produtoAtual.valor || 0) : 0;
+        totalProd += preco * q;
+    });
+    
+    let totalFinal;
+    if (valorCustomizado !== null && valorCustomizado > 0) {
+        totalFinal = parseFloat(valorCustomizado);
+    } else {
+        totalFinal = totalServ + totalProd - desc;
+    }
+    
+    const previewEl = document.getElementById('total-preview');
+    if (previewEl) {
+        previewEl.innerText = 'R$ ' + totalFinal.toFixed(2).replace('.', ',');
     }
 }
 
@@ -196,9 +256,11 @@ async function salvarDados() {
         const nome = document.getElementById('m-nome-sem').value;
         const sel = Array.from(document.querySelectorAll('input[name="serv"]:checked')).map(i => i.value);
         const prodsChecked = Array.from(document.querySelectorAll('input[name="prod"]:checked'));
+        const valorCustomizado = parseFloat(document.getElementById('m-valor-custom')?.value) || null;
         const desc = parseFloat(document.getElementById('m-desc')?.value) || 0;
         const pgtoRaw = document.getElementById('m-pg')?.value;
         const recebedor = document.getElementById('m-recebedor')?.value || '';
+        const recebedorValor = parseFloat(document.getElementById('m-recebedor-valor')?.value) || 0;
         const gorjeta = parseFloat(document.getElementById('m-gorjeta')?.value) || 0;
         const barbeiroNome = document.getElementById('m-barbeiro-nome')?.value || '';
         const barbeiroValor = parseFloat(document.getElementById('m-barbeiro-valor')?.value) || 0;
@@ -238,8 +300,16 @@ async function salvarDados() {
             produtosSalvos.push({ nome: p.value, qtd: q });
         });
         
-        let totalCalculado = totalServ + totalProd - desc + gorjeta;
-        let totalFinal = totalCalculado.toFixed(2);
+        // Se tem valor customizado, usa esse. Senão calcula
+        let totalFinal;
+        if (valorCustomizado !== null && valorCustomizado > 0) {
+            // Usa valor personalizado sem descontos
+            totalFinal = valorCustomizado.toFixed(2);
+        } else {
+            // Calcula normalmente com desconto e gorjeta
+            let totalCalculado = totalServ + totalProd - desc + gorjeta;
+            totalFinal = totalCalculado.toFixed(2);
+        }
 
         if (nome) {
             const atendimento = { 
@@ -252,10 +322,12 @@ async function salvarDados() {
                 pagamento: pendente ? "PENDENTE" : pgtoRaw,
                 pendente: pendente,
                 recebedor: recebedor,
+                recebedorValor: recebedorValor,
                 gorjeta: gorjeta,
                 desconto: desc,
                 barbeiroNome: barbeiroNome,
-                barbeiroValor: barbeiroValor
+                barbeiroValor: barbeiroValor,
+                valorCustomizado: valorCustomizado
             };
             
             if (itemSendoEditado !== null) {

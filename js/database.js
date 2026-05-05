@@ -400,16 +400,28 @@ function verificarBackupDetalhes() {
     if (backup.clientes && backup.clientes.length > 0) {
         listaClientes = backup.clientes.slice(0, 5).map(c => {
             // Procura a forma de pagamento mais recente deste cliente no backup de atendimentos
-            let formaPagto = '';
+            let formaPagto = 'sem pagamento';
+            
             if (backup.atendimentos && backup.atendimentos.length > 0) {
-                const ultimoAtendimento = backup.atendimentos
-                    .filter(a => a.cliente === c.nome)
-                    .sort((a, b) => new Date(b.dataHora || 0) - new Date(a.dataHora || 0))[0];
-                if (ultimoAtendimento && ultimoAtendimento.pagamento) {
-                    formaPagto = ` (${ultimoAtendimento.pagamento})`;
+                // Filtra atendimentos deste cliente
+                const atendimentosCliente = backup.atendimentos.filter(a => a.cliente === c.nome || a.nome === c.nome);
+                
+                if (atendimentosCliente.length > 0) {
+                    // Pega o ÚLTIMO atendimento (mais recente)
+                    const ultimoAtendimento = atendimentosCliente.sort((a, b) => {
+                        const dataA = new Date(a.dataHora || 0).getTime();
+                        const dataB = new Date(b.dataHora || 0).getTime();
+                        return dataB - dataA;
+                    })[0];
+                    
+                    // Extrai forma de pagamento
+                    if (ultimoAtendimento) {
+                        formaPagto = ultimoAtendimento.pagamento || 'sem pagamento';
+                    }
                 }
             }
-            return `• ${c.nome || 'Sem nome'}${formaPagto}`;
+            
+            return `• ${c.nome || 'Sem nome'} (${formaPagto})`;
         }).join('<br>');
         if (backup.clientes.length > 5) {
             listaClientes += `<br>... e mais ${backup.clientes.length - 5}`;
