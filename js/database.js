@@ -1,7 +1,14 @@
 // ==========================================
 // BANCO DE DADOS - database.js
 // ==========================================
-let db = JSON.parse(localStorage.getItem('barber_v6')) || { clientes: [], atendimentos: [], produtos: [], servicosExtras: [], ultimaResetSemana: null };
+let db = JSON.parse(localStorage.getItem('barber_v6')) || { 
+    clientes: [], 
+    atendimentos: [], 
+    produtos: [], 
+    servicosExtras: [],
+    ultimaSemanaResetada: null,
+    backupUltimaLista: null
+};
 
 // Migra EXTRAS_ANTIGOS para db.servicosExtras (primeira execução)
 const EXTRAS_ANTIGOS = { "Sobrancelha": 10, "Limpeza": 15, "Pezinho": 10, "Botox": 100 };
@@ -13,49 +20,57 @@ if (db.servicosExtras.length === 0) {
     salvarDB();
 }
 
+// Inicializar campos de reset se não existirem
+if (!db.ultimaSemanaResetada) db.ultimaSemanaResetada = null;
+if (!db.backupUltimaLista) db.backupUltimaLista = null;
+
 // ==========================================
 // VERIFICAR E REINICIAR AUTOMATICAMENTE A CADA SEGUNDA-FEIRA
 // ==========================================
 function verificarResetSemanal() {
     const agora = new Date();
-    const diaAtual = agora.getDay(); // 0 = domingo, 1 = segunda
-    const dataAtual = agora.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const diaAtual = agora.getDay(); // 0 = domingo, 1 = segunda, 2 = terça, etc
+    const semanaAtual = obterNumeroSemana(agora);
     
-    // Se não existe registro de reset ou é segunda-feira e não foi resetado hoje
-    if (!db.ultimaResetSemana) {
-        if (diaAtual === 1) { // Segunda-feira
-            resetarListaSemanal(true); // true = silencioso
-        }
-    } else {
-        const ultimoResetData = db.ultimaResetSemana.split(' ')[0]; // Pega só a data
-        // Se passou de semana (segunda-feira e último reset foi em outra data)
-        if (diaAtual === 1 && ultimoResetData !== dataAtual) {
-            resetarListaSemanal(true); // true = silencioso
-        }
+    // Se é segunda-feira E é uma semana diferente da última resetada
+    if (diaAtual === 1 && db.ultimaSemanaResetada !== semanaAtual) {
+        // Fazer backup de TODOS os dados ANTES de resetar
+        db.backupUltimaLista = {
+            clientes: JSON.parse(JSON.stringify(db.clientes)),
+            atendimentos: JSON.parse(JSON.stringify(db.atendimentos)),
+            produtos: JSON.parse(JSON.stringify(db.produtos)),
+            servicosExtras: JSON.parse(JSON.stringify(db.servicosExtras)),
+            semana: db.ultimaSemanaResetada,
+            data: new Date().toLocaleDateString('pt-BR'),
+            hora: new Date().toLocaleTimeString('pt-BR')
+        };
+        
+        // Agora reseta APENAS os atendimentos
+        db.atendimentos = [];
+        db.ultimaSemanaResetada = semanaAtual;
+        salvarDB();
     }
 }
 
 // ==========================================
-// FUNÇÃO PARA REINICIAR A LISTA SEMANAL
+// CALCULAR NÚMERO DA SEMANA DO ANO
+// ==========================================
+function obterNumeroSemana(data) {
+    const umJaneiro = new Date(data.getFullYear(), 0, 1);
+    const primeirosDias = (data - umJaneiro) / 86400000;
+    return Math.ceil((primeirosDias + umJaneiro.getDay() + 1) / 7);
+}
+
+// ==========================================
+// FUNÇÃO PARA REINICIAR A LISTA SEMANAL (MANUAL)
 // ==========================================
 function resetarListaSemanal(silencioso = false) {
     if (silencioso) {
-        // Executa silenciosamente (sem confirmação)
-        const agora = new Date();
-        const dataAtual = agora.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-        
-        db.atendimentos = [];
-        db.ultimaResetSemana = dataAtual;
-        salvarDB();
-        
-        if (abaAtual === 'semanal') {
-            renderSemana();
-        }
-        if (document.getElementById('dash-meu')) {
-            renderAjustes();
-        }
+        // Executa silenciosamente (automático de segunda-feira)
+        // Já foi feito em verificarResetSemanal()
+        return;
     } else {
-        // Abre modal de confirmação
+        // Abre modal de confirmação para reset manual
         mostrarModalConfirmacao(
             '⚠️ Reiniciar Lista da Semana?',
             'Isso vai apagar TODOS os atendimentos atuais. Tem certeza?',
@@ -70,11 +85,22 @@ function resetarListaSemanal(silencioso = false) {
 // EXECUTAR RESET APÓS CONFIRMAÇÃO
 // ==========================================
 function confirmarResetSemanal() {
-    const agora = new Date();
-    const dataAtual = agora.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const semanaAtual = obterNumeroSemana(new Date());
     
+    // Fazer backup de TODOS os dados ANTES de resetar
+    db.backupUltimaLista = {
+        clientes: JSON.parse(JSON.stringify(db.clientes)),
+        atendimentos: JSON.parse(JSON.stringify(db.atendimentos)),
+        produtos: JSON.parse(JSON.stringify(db.produtos)),
+        servicosExtras: JSON.parse(JSON.stringify(db.servicosExtras)),
+        semana: db.ultimaSemanaResetada,
+        data: new Date().toLocaleDateString('pt-BR'),
+        hora: new Date().toLocaleTimeString('pt-BR')
+    };
+    
+    // Reseta APENAS os atendimentos
     db.atendimentos = [];
-    db.ultimaResetSemana = dataAtual;
+    db.ultimaSemanaResetada = semanaAtual;
     salvarDB();
     
     if (abaAtual === 'semanal') {
@@ -84,8 +110,67 @@ function confirmarResetSemanal() {
         renderAjustes();
     }
     
-    // Mostra mensagem de sucesso
     mostrarModalSucesso('✅ Sucesso!', 'Lista semanal reiniciada com sucesso!');
+}
+
+// ==========================================
+// RECUPERAR ÚLTIMO BACKUP COMPLETO
+// ==========================================
+function recuperarUltimaLista() {
+    if (!db.backupUltimaLista || !db.backupUltimaLista.atendimentos) {
+        mostrarModalSucesso('❌ Nenhum backup', 'Não há lista anterior para recuperar.');
+        return;
+    }
+    
+    const msgData = db.backupUltimaLista.data;
+    const msgHora = db.backupUltimaLista.hora ? ` às ${db.backupUltimaLista.hora}` : '';
+    
+    mostrarModalConfirmacao(
+        '⚠️ Recuperar Lista Anterior?',
+        `Isso vai restaurar TODOS os dados de ${msgData}${msgHora}:\n\n• Clientes\n• Atendimentos\n• Produtos\n• Serviços\n\nTem certeza?`,
+        'Recuperar',
+        'Cancelar',
+        confirmarRecuperacaoLista
+    );
+}
+
+// ==========================================
+// CONFIRMAR RECUPERAÇÃO - RESTAURA TUDO
+// ==========================================
+function confirmarRecuperacaoLista() {
+    if (!db.backupUltimaLista) return;
+    
+    // Restaura TODOS os dados do backup
+    if (db.backupUltimaLista.clientes) {
+        db.clientes = JSON.parse(JSON.stringify(db.backupUltimaLista.clientes));
+    }
+    if (db.backupUltimaLista.atendimentos) {
+        db.atendimentos = JSON.parse(JSON.stringify(db.backupUltimaLista.atendimentos));
+    }
+    if (db.backupUltimaLista.produtos) {
+        db.produtos = JSON.parse(JSON.stringify(db.backupUltimaLista.produtos));
+    }
+    if (db.backupUltimaLista.servicosExtras) {
+        db.servicosExtras = JSON.parse(JSON.stringify(db.backupUltimaLista.servicosExtras));
+    }
+    
+    salvarDB();
+    
+    // Atualiza todas as telas
+    if (abaAtual === 'semanal') {
+        renderSemana();
+    }
+    if (abaAtual === 'clientes') {
+        renderClientes();
+    }
+    if (document.getElementById('dash-meu')) {
+        renderAjustes();
+    }
+    
+    mostrarModalSucesso(
+        '✅ Recuperado!', 
+        `Lista completa de ${db.backupUltimaLista.data} foi restaurada!\n\nClientes, atendimentos e serviços voltaram.`
+    );
 }
 
 // ==========================================
