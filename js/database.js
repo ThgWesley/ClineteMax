@@ -341,4 +341,226 @@ function mostrarModalSucesso(titulo, mensagem) {
 
 function salvarDB() {
     localStorage.setItem('barber_v6', JSON.stringify(db));
+    atualizarStatusBackup(); // Atualiza o indicador toda vez que salva
+}
+
+// ==========================================
+// ATUALIZAR STATUS VISUAL DO BACKUP
+// ==========================================
+function atualizarStatusBackup() {
+    const statusEl = document.getElementById('status-backup');
+    const btnRecuperar = document.getElementById('btn-recuperar');
+    
+    if (!statusEl) return; // Se não está na página, não faz nada
+    
+    if (db.backupUltimaLista && db.backupUltimaLista.atendimentos) {
+        const qtdClientes = db.backupUltimaLista.clientes ? db.backupUltimaLista.clientes.length : 0;
+        const qtdAtendimentos = db.backupUltimaLista.atendimentos ? db.backupUltimaLista.atendimentos.length : 0;
+        const data = db.backupUltimaLista.data || 'data desconhecida';
+        
+        statusEl.className = 'mb-4 p-3 rounded-2xl text-center text-[9px] font-bold bg-green-50 text-green-700 border border-green-200';
+        statusEl.innerHTML = `✅ BACKUP GUARDADO<br>${qtdClientes} clientes | ${qtdAtendimentos} atendimentos<br>Data: ${data}`;
+        
+        if (btnRecuperar) {
+            btnRecuperar.disabled = false;
+            btnRecuperar.style.opacity = '1';
+            btnRecuperar.style.cursor = 'pointer';
+        }
+    } else {
+        statusEl.className = 'mb-4 p-3 rounded-2xl text-center text-[9px] font-bold bg-red-50 text-red-700 border border-red-200';
+        statusEl.innerHTML = '❌ Nenhum backup guardado';
+        
+        if (btnRecuperar) {
+            btnRecuperar.disabled = true;
+            btnRecuperar.style.opacity = '0.5';
+            btnRecuperar.style.cursor = 'not-allowed';
+        }
+    }
+}
+
+// ==========================================
+// VERIFICAR E EXIBIR DETALHES DO BACKUP
+// ==========================================
+function verificarBackupDetalhes() {
+    if (!db.backupUltimaLista || !db.backupUltimaLista.atendimentos) {
+        mostrarModalSucesso(
+            '❌ Nenhum Backup',
+            'Não há dados guardados no cache para visualizar.'
+        );
+        return;
+    }
+    
+    const backup = db.backupUltimaLista;
+    const qtdClientes = backup.clientes ? backup.clientes.length : 0;
+    const qtdAtendimentos = backup.atendimentos ? backup.atendimentos.length : 0;
+    const qtdProdutos = backup.produtos ? backup.produtos.length : 0;
+    const qtdServiços = backup.servicosExtras ? backup.servicosExtras.length : 0;
+    
+    let listaClientes = '';
+    if (backup.clientes && backup.clientes.length > 0) {
+        listaClientes = backup.clientes.slice(0, 5).map(c => {
+            // Procura a forma de pagamento mais recente deste cliente no backup de atendimentos
+            let formaPagto = '';
+            if (backup.atendimentos && backup.atendimentos.length > 0) {
+                const ultimoAtendimento = backup.atendimentos
+                    .filter(a => a.cliente === c.nome)
+                    .sort((a, b) => new Date(b.dataHora || 0) - new Date(a.dataHora || 0))[0];
+                if (ultimoAtendimento && ultimoAtendimento.pagamento) {
+                    formaPagto = ` (${ultimoAtendimento.pagamento})`;
+                }
+            }
+            return `• ${c.nome || 'Sem nome'}${formaPagto}`;
+        }).join('<br>');
+        if (backup.clientes.length > 5) {
+            listaClientes += `<br>... e mais ${backup.clientes.length - 5}`;
+        }
+    }
+    
+    const modal = document.createElement('div');
+    modal.id = 'modal-backup-detalhes';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+        overflow-y: auto;
+    `;
+    
+    modal.innerHTML = `
+        <div style="
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 550px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-height: 80vh;
+            overflow-y: auto;
+        ">
+            <h2 style="
+                margin: 0 0 16px 0;
+                font-size: 18px;
+                font-weight: 900;
+                color: #1e293b;
+            ">📊 Detalhes do Backup</h2>
+            
+            <div style="
+                background: #f1f5f9;
+                padding: 12px;
+                border-radius: 12px;
+                margin-bottom: 16px;
+                font-size: 12px;
+                color: #475569;
+            ">
+                <strong>📅 Data:</strong> ${backup.data}<br>
+                <strong>⏰ Hora:</strong> ${backup.hora || 'não registrada'}
+            </div>
+            
+            <div style="
+                background: #f0fdf4;
+                padding: 12px;
+                border-radius: 12px;
+                margin-bottom: 12px;
+                font-size: 13px;
+                color: #166534;
+                border-left: 4px solid #22c55e;
+            ">
+                <strong>✅ ${qtdClientes} Clientes - Forma de Pagamento</strong><br>
+                <div style="font-size: 11px; margin-top: 8px; color: #15803d;">
+                    ${listaClientes.split('<br>').map(item => {
+                        if (item.includes('...')) return item;
+                        return `<div style="padding: 4px 0; margin: 2px 0;">${item}</div>`;
+                    }).join('') || '<em>(nenhum)</em>'}
+                </div>
+            </div>
+            
+            <div style="
+                background: #fef3c7;
+                padding: 12px;
+                border-radius: 12px;
+                margin-bottom: 12px;
+                font-size: 13px;
+                color: #92400e;
+                border-left: 4px solid #f59e0b;
+            ">
+                <strong>📋 ${qtdAtendimentos} Atendimentos Registrados</strong>
+            </div>
+            
+            <div style="
+                background: #f3e8ff;
+                padding: 12px;
+                border-radius: 12px;
+                margin-bottom: 12px;
+                font-size: 13px;
+                color: #6b21a8;
+                border-left: 4px solid #d946ef;
+            ">
+                <strong>🛍️ ${qtdProdutos} Produtos Registrados</strong>
+            </div>
+            
+            <div style="
+                background: #dbeafe;
+                padding: 12px;
+                border-radius: 12px;
+                margin-bottom: 16px;
+                font-size: 13px;
+                color: #0c4a6e;
+                border-left: 4px solid #0ea5e9;
+            ">
+                <strong>⭐ ${qtdServiços} Serviços Extras</strong>
+            </div>
+            
+            <div style="
+                display: flex;
+                gap: 12px;
+            ">
+                <button id="btn-fechar-backup" style="
+                    flex: 1;
+                    padding: 12px;
+                    border: 2px solid #e2e8f0;
+                    background: white;
+                    border-radius: 12px;
+                    font-weight: 700;
+                    color: #64748b;
+                    cursor: pointer;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                ">Fechar</button>
+                <button id="btn-recuperar-agora" style="
+                    flex: 1;
+                    padding: 12px;
+                    background: #0ea5e9;
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                ">Recuperar</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('btn-fechar-backup').onclick = () => {
+        modal.remove();
+    };
+    
+    document.getElementById('btn-recuperar-agora').onclick = () => {
+        modal.remove();
+        confirmarRecuperacaoLista();
+    };
+    
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+    };
 }
