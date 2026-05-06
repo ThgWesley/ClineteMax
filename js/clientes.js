@@ -27,26 +27,76 @@ function renderClientes() {
         return (c.nome + (c.tags || '')).toLowerCase().indexOf(f) !== -1;
     }).map(function(c) {
         var idx = db.clientes.indexOf(c);
-        var totalAtendimentos = db.atendimentos.filter(function(a) {
+        var totalSemana = db.atendimentos.filter(function(a) {
             return a.nome.toLowerCase() === c.nome.toLowerCase();
         }).length;
+        var totalAtendimentos = (c.totalAtendimentos || 0) + totalSemana;
         
         var fotoHtml = c.foto ? '<img src="' + c.foto + '" class="w-12 h-12 rounded-full object-cover">' : '<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300"><i class="fas fa-user"></i></div>';
         
-        return '<div class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center cursor-pointer active:scale-[0.98] transition-transform" onclick="verHistorico(\'' + c.nome.replace(/'/g, "\\'") + '\')"><div class="flex items-center gap-3">' + fotoHtml + '<div><p class="font-black text-sm uppercase">' + c.nome + '</p><p class="text-[10px] text-slate-400 font-bold">' + (c.contato || 'S/ CONTATO') + '</p></div></div><div class="flex items-center gap-3" onclick="event.stopPropagation()"><span class="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-full">' + totalAtendimentos + ' atend.</span><button onclick="prepararEdicaoCliente(' + idx + ')" class="text-slate-300"><i class="fas fa-edit"></i></button><button onclick="excluirCliente(' + idx + ')" class="text-slate-200"><i class="fas fa-trash-alt"></i></button></div></div>';
+        return '<div class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center cursor-pointer active:scale-[0.98] transition-transform" onclick="verHistorico(\'' + c.nome.replace(/'/g, "\\'") + '\')"><div class="flex items-center gap-3">' + fotoHtml + '<div><p class="font-black text-sm uppercase">' + c.nome + '</p><p class="text-[10px] text-slate-400 font-bold">' + (c.contato || 'S/ CONTATO') + '</p></div></div><div class="flex items-center gap-3" onclick="event.stopPropagation()"><span class="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-full cursor-pointer\" onclick=\"editarTotalAtendimentos(' + idx + ', event)\">' + totalAtendimentos + ' atend. ✏️</span><button onclick="prepararEdicaoCliente(' + idx + ')" class="text-slate-300"><i class="fas fa-edit"></i></button><button onclick="excluirCliente(' + idx + ')" class="text-slate-200"><i class="fas fa-trash-alt"></i></button></div></div>';
     }).join('');
 }
 
 function prepararEdicaoCliente(i) {
     itemSendoEditado = i;
     abaAtual = 'clientes';
+    if (croppieInstance) { croppieInstance.destroy(); croppieInstance = null; }
     abrirModal(false);
     var c = db.clientes[i];
     setTimeout(function() {
         document.getElementById('m-nome').value = c.nome;
         document.getElementById('m-contato').value = c.contato || '';
         document.getElementById('m-tags').value = c.tags || '';
+        if (c.foto) {
+            var cropContainer = document.getElementById('crop-container');
+            var cropperWrap = document.getElementById('cropper-wrap');
+            if (cropContainer && cropperWrap) {
+                cropContainer.style.display = 'block';
+                cropperWrap.innerHTML = '<img src="' + c.foto + '" style="max-width:100%; border-radius:8px; margin-top:8px;" title="Foto atual">';
+            }
+        }
     }, 50);
+}
+
+function editarTotalAtendimentos(idx, event) {
+    event.stopPropagation();
+    var c = db.clientes[idx];
+    var totalSemana = db.atendimentos.filter(function(a) {
+        return a.nome.toLowerCase() === c.nome.toLowerCase();
+    }).length;
+    var totalAtual = (c.totalAtendimentos || 0) + totalSemana;
+
+    var modal = document.createElement('div');
+    modal.id = 'modal-editar-atend';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+    modal.innerHTML = `
+        <div style="background:white;border-radius:20px;padding:24px;width:260px;box-shadow:0 20px 60px rgba(0,0,0,0.25);text-align:center;">
+            <p style="margin:0 0 16px;font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Nº de atendimentos</p>
+            <input id="input-editar-atend" type="number" min="0" value="${totalAtual}"
+                style="width:100%;text-align:center;font-size:28px;font-weight:900;color:#e11d48;border:2px solid #f1f5f9;border-radius:12px;padding:10px 0;outline:none;background:#fafafa;">
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button id="btn-cancel-atend" style="flex:1;padding:11px;border:2px solid #e2e8f0;background:white;border-radius:12px;font-weight:700;font-size:12px;color:#64748b;cursor:pointer;text-transform:uppercase;">Cancelar</button>
+                <button id="btn-ok-atend" style="flex:1;padding:11px;background:#e11d48;color:white;border:none;border-radius:12px;font-weight:700;font-size:12px;cursor:pointer;text-transform:uppercase;">Salvar</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    var input = document.getElementById('input-editar-atend');
+    input.focus();
+    input.select();
+
+    document.getElementById('btn-cancel-atend').onclick = function() { modal.remove(); };
+    document.getElementById('btn-ok-atend').onclick = function() {
+        var novoTotal = parseInt(input.value);
+        if (!isNaN(novoTotal) && novoTotal >= 0) {
+            db.clientes[idx].totalAtendimentos = Math.max(0, novoTotal - totalSemana);
+            salvarDB();
+            renderClientes();
+        }
+        modal.remove();
+    };
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
 }
 
 function excluirCliente(i) {
@@ -147,6 +197,9 @@ function verHistorico(nomeCliente) {
     
     var totalGasto = atendimentosDoCliente.reduce(function(acc, a) { return acc + parseFloat(a.total || 0); }, 0);
     var totalAtendimentos = atendimentosDoCliente.length;
+    var cliente = db.clientes.find(function(cl) { return cl.nome.toLowerCase() === nomeCliente.toLowerCase(); });
+    var acumulado = cliente ? (cliente.totalAtendimentos || 0) : 0;
+    var totalAtendimentosGlobal = acumulado + totalAtendimentos;
     
     var servicosFavoritos = {};
     atendimentosDoCliente.forEach(function(a) {
@@ -156,8 +209,8 @@ function verHistorico(nomeCliente) {
     });
     var servicoTop = Object.entries(servicosFavoritos).sort(function(a, b) { return b[1] - a[1]; })[0];
     
-    var ciclosCompletos = Math.floor(totalAtendimentos / CICLO_FIDELIDADE);
-    var progressoCicloAtual = totalAtendimentos % CICLO_FIDELIDADE;
+    var ciclosCompletos = Math.floor(totalAtendimentosGlobal / CICLO_FIDELIDADE);
+    var progressoCicloAtual = totalAtendimentosGlobal % CICLO_FIDELIDADE;
     var faltamParaProximo = CICLO_FIDELIDADE - progressoCicloAtual;
     
     function montarCard(a) {
@@ -194,11 +247,11 @@ function verHistorico(nomeCliente) {
     var fimCiclo = inicioCiclo + CICLO_FIDELIDADE;
     var atendimentosCicloAtual = atendimentosDoCliente.slice(inicioCiclo, fimCiclo);
     
-    var html = '<div class="grid grid-cols-3 gap-2 mb-4"><div class="bg-rose-50 p-3 rounded-xl text-center"><p class="text-[8px] font-black uppercase text-rose-400">Atendimentos</p><p class="text-lg font-black text-rose-600">' + totalAtendimentos + '</p></div><div class="bg-emerald-50 p-3 rounded-xl text-center"><p class="text-[8px] font-black uppercase text-emerald-400">Total Gasto</p><p class="text-lg font-black text-emerald-600">R$ ' + totalGasto.toFixed(2) + '</p></div><div class="bg-blue-50 p-3 rounded-xl text-center"><p class="text-[8px] font-black uppercase text-blue-400">Favorito</p><p class="text-[10px] font-black text-blue-600">' + (servicoTop ? servicoTop[0] : 'N/A') + '</p></div></div>';
+    var html = '<div class="grid grid-cols-3 gap-2 mb-4"><div class="bg-rose-50 p-3 rounded-xl text-center"><p class="text-[8px] font-black uppercase text-rose-400">Atendimentos</p><p class="text-lg font-black text-rose-600">' + totalAtendimentosGlobal + '</p></div><div class="bg-emerald-50 p-3 rounded-xl text-center"><p class="text-[8px] font-black uppercase text-emerald-400">Total Gasto</p><p class="text-lg font-black text-emerald-600">R$ ' + totalGasto.toFixed(2) + '</p></div><div class="bg-blue-50 p-3 rounded-xl text-center"><p class="text-[8px] font-black uppercase text-blue-400">Favorito</p><p class="text-[10px] font-black text-blue-600">' + (servicoTop ? servicoTop[0] : 'N/A') + '</p></div></div>';
     
     html += '<button onclick="novoAtendimentoDoCliente(\'' + nomeCliente.replace(/'/g, "\\'") + '\')" class="w-full mb-4 bg-rose-500 text-white py-3 rounded-xl text-[10px] font-black uppercase active:scale-95 transition-transform">✂️ Novo Atendimento</button>';
     
-    html += '<div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-2xl mb-4 border border-amber-200"><div class="flex items-center justify-between mb-2"><span class="text-[10px] font-black uppercase text-amber-700">🏆 Fidelidade: ' + ciclosCompletos + ' ' + (ciclosCompletos === 1 ? 'ciclo' : 'ciclos') + '</span>' + (ciclosCompletos > 0 ? '<span class="text-[8px] font-bold text-amber-500 bg-amber-100 px-2 py-1 rounded-full">' + (ciclosCompletos * CICLO_FIDELIDADE) + ' atend.</span>' : '') + '</div><div class="flex items-center gap-3"><span class="text-[10px] font-black uppercase text-amber-600">📊 Ciclo atual: ' + progressoCicloAtual + '/' + CICLO_FIDELIDADE + '</span>' + (faltamParaProximo > 0 ? '<span class="text-[8px] text-amber-500 font-bold">(faltam ' + faltamParaProximo + ')</span>' : '<span class="text-[8px] text-emerald-500 font-bold">🎉 Completo!</span>') + '</div><div class="mt-2 bg-amber-200 rounded-full h-2 overflow-hidden"><div class="bg-amber-500 h-full rounded-full transition-all duration-500" style="width: ' + (progressoCicloAtual / CICLO_FIDELIDADE) * 100 + '%"></div></div></div>';
+    html += '<div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-2xl mb-4 border border-amber-200"><div class="flex items-center justify-between mb-2"><span class="text-[10px] font-black uppercase text-amber-700">🏆 Fidelidade: ' + ciclosCompletos + ' ' + (ciclosCompletos === 1 ? 'ciclo' : 'ciclos') + '</span>' + (ciclosCompletos > 0 ? '<span class="text-[8px] font-bold text-amber-500 bg-amber-100 px-2 py-1 rounded-full">' + (ciclosCompletos * CICLO_FIDELIDADE) + ' atend. ✏️</span>' : '') + '</div><div class="flex items-center gap-3"><span class="text-[10px] font-black uppercase text-amber-600">📊 Ciclo atual: ' + progressoCicloAtual + '/' + CICLO_FIDELIDADE + '</span>' + (faltamParaProximo > 0 ? '<span class="text-[8px] text-amber-500 font-bold">(faltam ' + faltamParaProximo + ')</span>' : '<span class="text-[8px] text-emerald-500 font-bold">🎉 Completo!</span>') + '</div><div class="mt-2 bg-amber-200 rounded-full h-2 overflow-hidden"><div class="bg-amber-500 h-full rounded-full transition-all duration-500" style="width: ' + (progressoCicloAtual / CICLO_FIDELIDADE) * 100 + '%"></div></div></div>';
     
     html += '<div class="bg-slate-100 rounded-2xl overflow-hidden"><button onclick="toggleHistorico(this)" class="w-full p-4 flex justify-between items-center font-black uppercase text-[10px] text-slate-600 active:bg-slate-200 transition-colors"><span>📜 Últimos atendimentos (' + atendimentosCicloAtual.length + ')</span><i class="fas fa-chevron-down text-slate-400 transition-transform duration-300" id="icone-seta"></i></button><div id="historico-lista" class="hidden px-4 pb-4 space-y-2">';
     

@@ -346,10 +346,13 @@ async function salvarDados() {
 function initCropper(input) { 
     if (input.files && input.files[0]) { 
         const reader = new FileReader(); 
-        document.getElementById('crop-container').style.display = 'block'; 
+        const cropContainer = document.getElementById('crop-container');
+        const cropperWrap = document.getElementById('cropper-wrap');
+        cropContainer.style.display = 'block'; 
         reader.onload = e => { 
-            if (croppieInstance) croppieInstance.destroy(); 
-            croppieInstance = new Croppie(document.getElementById('cropper-wrap'), { 
+            if (croppieInstance) { croppieInstance.destroy(); croppieInstance = null; }
+            cropperWrap.innerHTML = '';
+            croppieInstance = new Croppie(cropperWrap, { 
                 viewport: { width: 160, height: 160, type: 'square' }, 
                 boundary: { width: 260, height: 260 } 
             }); 

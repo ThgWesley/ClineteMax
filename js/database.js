@@ -45,6 +45,14 @@ function verificarResetSemanal() {
             hora: new Date().toLocaleTimeString('pt-BR')
         };
         
+        // Acumula totalAtendimentos nos clientes antes de resetar
+        db.clientes.forEach(function(c) {
+            var count = db.atendimentos.filter(function(a) {
+                return a.nome.toLowerCase() === c.nome.toLowerCase();
+            }).length;
+            c.totalAtendimentos = (c.totalAtendimentos || 0) + count;
+        });
+        
         // Agora reseta APENAS os atendimentos
         db.atendimentos = [];
         db.ultimaSemanaResetada = semanaAtual;
@@ -98,6 +106,14 @@ function confirmarResetSemanal() {
         hora: new Date().toLocaleTimeString('pt-BR')
     };
     
+    // Acumula totalAtendimentos nos clientes antes de resetar
+    db.clientes.forEach(function(c) {
+        var count = db.atendimentos.filter(function(a) {
+            return a.nome.toLowerCase() === c.nome.toLowerCase();
+        }).length;
+        c.totalAtendimentos = (c.totalAtendimentos || 0) + count;
+    });
+
     // Reseta APENAS os atendimentos
     db.atendimentos = [];
     db.ultimaSemanaResetada = semanaAtual;

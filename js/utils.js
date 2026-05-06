@@ -158,7 +158,10 @@ async function gerarRelatorioPNG() {
             totalDia += totalAtend;
             
             const temRecebedor = a.recebedor && a.recebedor !== 'Não informado';
-            const formaPagamento = a.pagamento && !a.pendente ? ` • 💳 ${a.pagamento}` : '';
+            const pgEmoji = a.pagamento === 'Cartão' ? '💳' : a.pagamento === 'Dinheiro' ? '💰' : a.pagamento === 'Pix' ? '❖' : '';
+            const pgColor = a.pagamento === 'Pix' ? ' style="color:#32BCAD"' : '';
+            const formaPagamento = a.pagamento && !a.pendente ? ` • ${pgEmoji} ${a.pagamento}` : '';
+            const formaPagamentoStyle = a.pagamento === 'Pix' && !a.pendente ? '#32BCAD' : '';
             const statusLinha = a.pendente 
                 ? `⚠️ PENDENTE${temRecebedor ? ` • Com: ${a.recebedor}` : ''}`
                 : `✅ PAGO${temRecebedor ? ` • Recebido por: ${a.recebedor}` : ''}${formaPagamento}`;
@@ -166,7 +169,7 @@ async function gerarRelatorioPNG() {
             html += `
                 <div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9; font-size: 9px;">
                     <div style="font-weight: 900; text-transform: uppercase;">${a.nome}</div>
-                    <div style="color: ${a.pendente ? '#e11d48' : '#64748b'}; font-size: 8px;">${statusLinha}</div>
+                    <div style="color: ${a.pendente ? '#e11d48' : (formaPagamentoStyle || '#64748b')}; font-size: 8px;">${statusLinha}</div>
                     <div style="color: #64748b;">✂️ ${a.servicos.join(' + ')}: R$ ${servicos.toFixed(2)}</div>
                     ${a.desconto > 0 ? `<div style="color: #e11d48;">Desconto: -R$ ${parseFloat(a.desconto).toFixed(2)}</div>` : ''}
                     ${produtosTexto ? `<div style="color: #3b82f6;">🛍️ ${produtosTexto}: R$ ${totalProd.toFixed(2)}</div>` : ''}
