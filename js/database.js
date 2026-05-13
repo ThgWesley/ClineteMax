@@ -358,6 +358,7 @@ function mostrarModalSucesso(titulo, mensagem) {
 function salvarDB() {
     localStorage.setItem('barber_v6', JSON.stringify(db));
     atualizarStatusBackup(); // Atualiza o indicador toda vez que salva
+    fazerBackupAutomatico(); // Backup automático na memória interna
 }
 
 // ==========================================
