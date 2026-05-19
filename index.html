@@ -193,7 +193,7 @@
                 <button onclick="exportarBackup()" class="w-full mb-3 bg-slate-50 text-slate-700 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
                     Exportar JSON <i class="fas fa-download text-rose-500"></i>
                 </button>
-                <button onclick="document.getElementById('importFile').click()" class="w-full border-2 border-dashed border-slate-100 text-slate-400 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
+                <button onclick="if(window.AndroidBridge && AndroidBridge.abrirSeletorArquivo){ AndroidBridge.abrirSeletorArquivo(); } else { document.getElementById('importFile').click(); }" class="w-full border-2 border-dashed border-slate-100 text-slate-400 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
                     Importar JSON <i class="fas fa-upload"></i>
                 </button>
                 <input type="file" id="importFile" onchange="importarBackup(event)" class="hidden" accept=".json">
