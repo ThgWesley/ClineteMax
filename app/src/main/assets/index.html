@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Barber Pro Elite - Topind!ca</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/ClineteMax/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BarberPro">
+    <link rel="apple-touch-icon" href="/ClineteMax/icon-192.png">
+    <meta name="theme-color" content="#e11d48">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="description" content="Gestão completa para barbearias - Agendamentos, clientes, produtos e dashboards">
+    
+    <!-- CDNs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Estilos Locais -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        #install-banner {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            z-index: 200;
+            animation: slideUp 0.3s ease;
+        }
+        #install-banner.show { display: block; }
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        #offline-indicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #f59e0b;
+            color: white;
+            text-align: center;
+            padding: 4px;
+            font-size: 11px;
+            font-weight: 800;
+            z-index: 300;
+            text-transform: uppercase;
+        }
+        #offline-indicator.show { display: block; }
+    </style>
+</head>
+<body>
+    <!-- Indicador Offline -->
+    <div id="offline-indicator">📱 Modo Offline - Dados salvos localmente</div>
+    
+    <!-- Banner de Instalação -->
+    <div id="install-banner">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="font-black text-sm uppercase text-slate-800">Instalar App</p>
+                <p class="text-[10px] text-slate-500 font-bold">Adicione à tela inicial para acesso rápido</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="dismissInstall()" class="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Agora não</button>
+                <button id="install-btn" onclick="installPWA()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase">Instalar</button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-white p-6 shadow-sm sticky top-0 z-50">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 id="page-title" class="text-2xl font-black italic tracking-tighter text-slate-900 uppercase">Lista Semanal</h1>
+                <p id="data-topo" class="text-[10px] font-bold text-rose-500 uppercase tracking-widest"></p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="checkForUpdates()" id="update-btn" class="bg-emerald-50 text-emerald-700 w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform hidden">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button onclick="acaoBotaoPlus()" id="btn-plus-header" class="bg-slate-900 text-white w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+            <button id="nav-semanal" onclick="mudarAba('semanal', this)" class="flex-1 min-w-[70px] bg-rose-50 border-2 border-rose-500 p-3 rounded-2xl flex flex-col items-center transition-all">
+                <i class="fas fa-calendar-alt text-rose-600 mb-1"></i>
+                <span class="text-[9px] font-black uppercase text-rose-600">Agenda</span>
+            </button>
+            <button id="nav-clientes" onclick="mudarAba('clientes', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+                <i class="fas fa-users mb-1"></i>
+                <span class="text-[9px] font-black uppercase">Clientes</span>
+            </button>
+            <button id="nav-servicos" onclick="mudarAba('servicos', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+                <i class="fas fa-star mb-1"></i>
+                <span class="text-[9px] font-black uppercase">Serviços</span>
+            </button>
+            <button id="nav-produtos" onclick="mudarAba('produtos', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+                <i class="fas fa-box-open mb-1"></i>
+                <span class="text-[9px] font-black uppercase">Produtos</span>
+            </button>
+            <button id="nav-ajustes" onclick="mudarAba('ajustes', this)" class="flex-1 min-w-[70px] bg-slate-50 border-2 border-transparent p-3 rounded-2xl flex flex-col items-center transition-all text-slate-400">
+                <i class="fas fa-cog mb-1"></i>
+                <span class="text-[9px] font-black uppercase">Ajustes</span>
+            </button>
+        </div>
+
+        <div id="faturamento-container" class="mt-4 bg-slate-900 p-4 rounded-2xl text-center">
+            <span class="text-slate-400 text-[10px] font-bold uppercase">Faturamento da Semana</span>
+            <p id="total-semanal" class="text-xl font-black text-rose-500">R$ 0,00</p>
+        </div>
+    </header>
+
+    <main class="p-4">
+        <!-- Aba Semanal -->
+        <section id="tab-semanal" class="space-y-2"></section>
+        
+        <!-- Aba Clientes -->
+        <section id="tab-clientes" class="hidden">
+            <input type="text" id="filtro-cliente" onkeyup="renderClientes()" placeholder="Procurar cliente ou tag..." class="mb-2 w-full p-4 rounded-xl border">
+            <div id="container-tags" class="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar"></div>
+            <div id="lista-clientes" class="grid gap-3"></div>
+        </section>
+        
+        <!-- Aba Serviços Extras -->
+        <section id="tab-servicos" class="hidden">
+            <div id="lista-servicos" class="grid gap-3"></div>
+        </section>
+        
+        <!-- Aba Produtos -->
+        <section id="tab-produtos" class="hidden">
+            <input type="text" id="filtro-produto" onkeyup="renderProdutos()" placeholder="Procurar produto..." class="mb-4 w-full p-4 rounded-xl border">
+            <div id="lista-produtos" class="grid gap-3"></div>
+        </section>
+
+        <!-- Aba Ajustes -->
+        <section id="tab-ajustes" class="hidden space-y-4">
+            <div class="bg-slate-900 p-6 rounded-3xl text-white shadow-xl">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
+                    <h3 class="text-[10px] font-black uppercase text-rose-500 tracking-widest">Dashboard de Lucro</h3>
+                    <div class="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-xl">
+                        <label for="input-porcentagem" class="text-[9px] font-bold text-slate-400 uppercase">Minha %</label>
+                        <input type="number" id="input-porcentagem" onkeyup="salvarPorcentagem(this.value)" onchange="salvarPorcentagem(this.value)" class="w-12 bg-transparent text-emerald-400 font-black text-center outline-none p-0 border-none text-sm" min="0" max="100">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                        <p id="label-meu" class="text-[9px] text-slate-400 font-bold uppercase mb-1 italic">Minha Parte</p>
+                        <p id="dash-meu" class="text-xl font-black text-emerald-400 font-mono">R$ 0,00</p>
+                    </div>
+                    <div>
+                        <p id="label-custos" class="text-[9px] text-slate-400 font-bold uppercase mb-1 italic">Loja/Custos</p>
+                        <p id="dash-custos" class="text-xl font-black text-slate-300 font-mono">R$ 0,00</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 class="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest text-center italic">Relatórios Visuais</h3>
+                <button onclick="gerarRelatorioPNG()" class="w-full mb-3 bg-emerald-50 text-emerald-700 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
+                    Gerar Relatório (PNG) <i class="fas fa-file-image text-emerald-500"></i>
+                </button>
+            </div>
+            
+            <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 class="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest text-center italic">Gerenciar Semana</h3>
+                <button onclick="resetarListaSemanal(false)" class="w-full mb-3 bg-amber-50 text-amber-700 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
+                    🔄 Reiniciar Lista da Semana <i class="fas fa-refresh"></i>
+                </button>
+                <button onclick="recuperarUltimaLista()" class="w-full mb-3 bg-blue-50 text-blue-700 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
+                    ↩️ Recuperar Lista Anterior <i class="fas fa-undo text-blue-500"></i>
+                </button>
+                <p class="text-[8px] text-slate-500 text-center italic mt-2">Reset apaga a semana atual. Recuperar restaura a semana anterior.</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 class="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest text-center italic">Segurança de Dados</h3>
+                <button onclick="exportarBackup()" class="w-full mb-3 bg-slate-50 text-slate-700 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
+                    Exportar JSON <i class="fas fa-download text-rose-500"></i>
+                </button>
+                <button onclick="document.getElementById('importFile').click()" class="w-full border-2 border-dashed border-slate-100 text-slate-400 p-4 rounded-2xl flex items-center justify-between font-black uppercase text-[10px] active:scale-95 transition-transform">
+                    Importar JSON <i class="fas fa-upload"></i>
+                </button>
+                <input type="file" id="importFile" onchange="importarBackup(event)" class="hidden" accept=".json">
+            </div>
+            
+            <!-- Status do PWA -->
+            <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 class="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest text-center italic">Status do App</h3>
+                <div class="text-center space-y-2">
+                    <p id="pwa-status" class="text-[10px] font-bold uppercase text-slate-500">Verificando...</p>
+                    <div class="flex justify-center gap-2">
+                        <button onclick="testarNotificacao()" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-[10px] font-black uppercase">Testar Notificação</button>
+                        <button onclick="limparCache()" class="px-4 py-2 bg-amber-50 text-amber-700 rounded-xl text-[10px] font-black uppercase">Limpar Cache</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="relatorio-temp" style="position: absolute; left: -9999px; width: 400px; background: white; padding: 20px; border-radius: 20px;"></div>
+
+    <!-- Modal -->
+    <div id="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="modal-title" class="text-lg font-black uppercase">Novo Registro</h2>
+                <button onclick="fecharModal()"><i class="fas fa-times-circle text-2xl text-slate-200"></i></button>
+            </div>
+            <div id="campos-dinamicos"></div>
+            <button id="btn-confirmar" onclick="salvarDados()">Confirmar</button>
+        </div>
+    </div>
+
+    <!-- Scripts da Aplicação (ORDEM CORRETA) -->
+    <script src="js/database.js"></script>
+    <script src="js/backup.js"></script>
+    <script src="js/servicos.js"></script>
+    <script src="js/produtos.js"></script>
+    <script src="js/clientes.js"></script>
+    <script src="js/agenda.js"></script>
+    <script src="js/atendimento.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/utils.js"></script>
+    
+    <!-- Script PWA -->
+    <script>
+        let deferredPrompt;
+        let installBanner = document.getElementById('install-banner');
+        let updateButton = document.getElementById('update-btn');
+        let registration;
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/ClineteMax/js/service-worker.js')
+                    .then(reg => {
+                        registration = reg;
+                        console.log('✅ Service Worker registrado:', reg.scope);
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    updateButton.classList.remove('hidden');
+                                    console.log('🔄 Nova versão disponível!');
+                                }
+                            });
+                        });
+                    })
+                    .catch(error => console.log('❌ Erro no Service Worker:', error));
+            });
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBanner.classList.add('show');
+        });
+
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ App instalado com sucesso!');
+            installBanner.classList.remove('show');
+            deferredPrompt = null;
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(choiceResult => {
+                    if (choiceResult.outcome === 'accepted') console.log('👍 Usuário instalou o app');
+                    deferredPrompt = null;
+                    installBanner.classList.remove('show');
+                });
+            }
+        }
+
+        function dismissInstall() { installBanner.classList.remove('show'); }
+
+        function checkForUpdates() {
+            if (registration) {
+                registration.update();
+                updateButton.classList.add('hidden');
+                alert('Verificando atualizações... Recarregue a página se disponível.');
+            }
+        }
+
+        function limparCache() {
+            if ('caches' in window) {
+                caches.keys().then(names => { names.forEach(name => caches.delete(name)); });
+                alert('✅ Cache limpo! O app será recarregado.');
+                setTimeout(() => location.reload(), 500);
+            }
+        }
+
+        function testarNotificacao() {
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        navigator.serviceWorker.ready.then(reg => {
+                            reg.showNotification('Barber Pro Elite ✂️', {
+                                body: 'Notificações funcionando perfeitamente!',
+                                icon: '/ClineteMax/icon-192.png',
+                                badge: '/ClineteMax/icon-192.png',
+                                vibrate: [200, 100, 200]
+                            });
+                        });
+                    }
+                });
+            } else { alert('Notificações não suportadas neste navegador'); }
+        }
+
+        function updateOnlineStatus() {
+            const indicator = document.getElementById('offline-indicator');
+            if (navigator.onLine) { indicator.classList.remove('show'); }
+            else { indicator.classList.add('show'); }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+
+        function atualizarStatusPWA() {
+            const statusElement = document.getElementById('pwa-status');
+            if (statusElement) {
+                const isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone || document.referrer.includes('android-app://');
+                if (isInstalled) {
+                    statusElement.textContent = '✅ App Instalado - Modo Nativo';
+                    statusElement.className = 'text-[10px] font-black uppercase text-emerald-500';
+                } else if (navigator.onLine) {
+                    statusElement.textContent = '🌐 Modo Navegador Online';
+                    statusElement.className = 'text-[10px] font-black uppercase text-blue-500';
+                } else {
+                    statusElement.textContent = '📱 Modo Offline';
+                    statusElement.className = 'text-[10px] font-black uppercase text-amber-500';
+                }
+            }
+        }
+
+        window.matchMedia('(display-mode: standalone)').addEventListener('change', atualizarStatusPWA);
+        setInterval(atualizarStatusPWA, 5000);
+        document.addEventListener('DOMContentLoaded', atualizarStatusPWA);
+
+        // Gestos de navegação
+        let touchStartX = 0;
+        document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+        document.addEventListener('touchend', (e) => {
+            const touchEndX = e.changedTouches[0].clientX;
+            const diff = touchStartX - touchEndX;
+            if (document.getElementById('modal').classList.contains('active')) return;
+            if (Math.abs(diff) > 80) {
+                const abas = ['semanal', 'clientes', 'servicos', 'produtos', 'ajustes'];
+                const currentIndex = abas.indexOf(abaAtual);
+                if (diff > 0 && currentIndex < abas.length - 1) {
+                    const nextAba = abas[currentIndex + 1];
+                    const nextBtn = document.getElementById(`nav-${nextAba}`);
+                    mudarAba(nextAba, nextBtn);
+                } else if (diff < 0 && currentIndex > 0) {
+                    const prevAba = abas[currentIndex - 1];
+                    const prevBtn = document.getElementById(`nav-${prevAba}`);
+                    mudarAba(prevAba, prevBtn);
+                }
+            }
+        });
+
+        // Bloquear swipe do modal de subir pro document
+        const modalEl = document.getElementById('modal');
+        modalEl.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+        modalEl.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
+
+        console.log('🚀 Barber Pro Elite PWA inicializado com sucesso!');
+        console.log('✂️ Pronto para instalação na tela inicial');
+    </script>
+</body>
+</html>

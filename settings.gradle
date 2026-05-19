@@ -1,0 +1,2 @@
+rootProject.name = "ClienteMax"
+include ':app'
