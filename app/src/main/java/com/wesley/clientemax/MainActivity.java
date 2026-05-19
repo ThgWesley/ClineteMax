@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -22,29 +23,33 @@ import java.io.InputStreamReader;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+
     private ValueCallback<Uri[]> filePathCallback;
+
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int IMPORT_BACKUP_REQUEST = 2001;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
 
         webView = new WebView(this);
+
         setContentView(webView);
 
-        WebSettings webSettings = webView.getSettings();
+        WebSettings settings = webView.getSettings();
 
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);
-        webSettings.setAllowFileAccess(true);
-        webSettings.setAllowContentAccess(true);
-        webSettings.setDatabaseEnabled(true);
-        webSettings.setUseWideViewPort(true);
-        webSettings.setLoadWithOverviewMode(true);
-        webSettings.setBuiltInZoomControls(false);
-        webSettings.setDisplayZoomControls(false);
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+        settings.setDatabaseEnabled(true);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
 
         webView.setWebViewClient(new WebViewClient());
 
@@ -61,7 +66,6 @@ public class MainActivity extends AppCompatActivity {
 
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
 
-                // MAIS COMPATÍVEL
                 intent.setType("*/*");
 
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -77,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView.addJavascriptInterface(new AndroidBridge(), "Android");
 
+        // TROQUE PELO SEU LINK/PÁGINA
         webView.loadUrl("file:///android_asset/index.html");
 
         getOnBackPressedDispatcher().addCallback(this,
@@ -95,22 +100,25 @@ public class MainActivity extends AppCompatActivity {
 
     public class AndroidBridge {
 
-        @android.webkit.JavascriptInterface
+        @JavascriptInterface
         public void importarBackup() {
 
-            runOnUiThread(() -> {
+            runOnUiThread(new Runnable() {
 
-                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                @Override
+                public void run() {
 
-                // MAIS COMPATÍVEL
-                intent.setType("*/*");
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
 
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
 
-                startActivityForResult(
-                        Intent.createChooser(intent, "Selecionar Backup"),
-                        IMPORT_BACKUP_REQUEST
-                );
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+
+                    startActivityForResult(
+                            Intent.createChooser(intent, "Selecionar Backup"),
+                            IMPORT_BACKUP_REQUEST
+                    );
+                }
             });
         }
     }
@@ -127,8 +135,9 @@ public class MainActivity extends AppCompatActivity {
         // INPUT NORMAL
         if (requestCode == FILE_CHOOSER_REQUEST) {
 
-            if (filePathCallback == null)
+            if (filePathCallback == null) {
                 return;
+            }
 
             Uri[] results = null;
 
@@ -142,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             filePathCallback.onReceiveValue(results);
+
             filePathCallback = null;
         }
 
@@ -176,27 +186,41 @@ public class MainActivity extends AppCompatActivity {
 
                         String conteudo = builder.toString();
 
-                        // MODO SEGURO SEM BASE64
-                        final String safe =
-                                org.json.JSONObject.quote(conteudo);
+                        // ESCAPA CARACTERES
+                        conteudo = conteudo
+                                .replace("\\", "\\\\")
+                                .replace("'", "\\'");
 
                         final String js =
-                                "javascript:(function(){" +
-                                "importarBackupDoAndroid(" + safe + ");" +
-                                "})()";
+                                "javascript:importarBackupDoAndroid('"
+                                        + conteudo +
+                                        "')";
 
-                        webView.evaluateJavascript(js, null);
+                        runOnUiThread(new Runnable() {
+
+                            @Override
+                            public void run() {
+
+                                webView.loadUrl(js);
+                            }
+                        });
 
                     } catch (Exception e) {
 
                         e.printStackTrace();
 
-                        webView.evaluateJavascript(
-                                "javascript:alert('Erro ao importar backup: "
-                                        + e.getMessage().replace("'", "")
-                                        + "')",
-                                null
-                        );
+                        final String erro = e.getMessage();
+
+                        runOnUiThread(new Runnable() {
+
+                            @Override
+                            public void run() {
+
+                                webView.loadUrl(
+                                        "javascript:alert('Erro ao importar backup')"
+                                );
+                            }
+                        });
                     }
                 }
             }
