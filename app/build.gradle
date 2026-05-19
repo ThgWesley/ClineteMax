@@ -3,6 +3,7 @@ plugins {
 }
 
 android {
+    namespace "com.wesley.clientemax"
     compileSdkVersion 34
     buildToolsVersion "34.0.0"
 
