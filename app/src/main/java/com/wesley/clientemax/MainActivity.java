@@ -366,13 +366,17 @@ public class MainActivity extends AppCompatActivity {
             try {
                 Uri uri = data.getData();
                 java.io.InputStream is = getContentResolver().openInputStream(uri);
-                byte[] buffer = new byte[is.available()];
-                is.read(buffer);
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = is.read(buf)) != -1) baos.write(buf, 0, n);
                 is.close();
-                String conteudo = new String(buffer, "UTF-8");
-                // Envia conteúdo pro JS
-                final String js = "importarBackupDoAndroid(" +
-                    conteudo.replace("\\", "\\\\").replace("'", "\\'") + ")";
+                String conteudo = baos.toString("UTF-8");
+
+                // Passa como base64 para evitar quebra de caracteres especiais no JS
+                String base64 = android.util.Base64.encodeToString(
+                    conteudo.getBytes("UTF-8"), android.util.Base64.NO_WRAP);
+                final String js = "(function(){ var b = atob('" + base64 + "'); importarBackupDoAndroid(b); })()";
                 runOnUiThread(() -> webView.evaluateJavascript(js, null));
             } catch (Exception e) {
                 e.printStackTrace();
