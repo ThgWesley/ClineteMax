@@ -302,12 +302,16 @@ async function exportarBackup() {
 function importarBackup(e) {
     const file = e.target.files[0];
     if (!file) return;
+    _processarArquivoBackup(file);
+}
+
+function _processarArquivoBackup(file) {
     const reader = new FileReader();
     reader.onload = function(ev) {
         try {
             const dados = JSON.parse(ev.target.result);
             if (dados.atendimentos || dados.clientes) {
-                if(confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
+                if (confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
                     db = dados;
                     salvarDB();
                     location.reload();
@@ -320,4 +324,22 @@ function importarBackup(e) {
         }
     };
     reader.readAsText(file);
+}
+
+// Chamado pelo AndroidBridge após selecionar arquivo (recebe conteúdo em base64 decodificado)
+function importarBackupDoAndroid(conteudo) {
+    try {
+        const dados = JSON.parse(conteudo);
+        if (dados.atendimentos || dados.clientes) {
+            if (confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
+                db = dados;
+                salvarDB();
+                location.reload();
+            }
+        } else {
+            alert("Arquivo de backup inválido.");
+        }
+    } catch (err) {
+        alert("Erro ao ler o arquivo.");
+    }
 }
