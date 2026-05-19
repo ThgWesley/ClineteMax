@@ -249,8 +249,20 @@ async function gerarRelatorioPNG() {
 
         canvas.toBlob(async (blob) => {
             const dataRef = new Date().toLocaleDateString().replace(/\//g, '-');
-            const file = new File([blob], `relatorio_barbearia_${dataRef}.png`, { type: 'image/png' });
-            
+            const nomeArq = `relatorio_barbearia_${dataRef}.png`;
+
+            // APK: usa ponte Java nativa para compartilhar
+            if (window.AndroidBridge && typeof window.AndroidBridge.compartilharImagem === 'function') {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    window.AndroidBridge.compartilharImagem(reader.result, nomeArq);
+                };
+                reader.readAsDataURL(blob);
+                return;
+            }
+
+            // Navegador: usa navigator.share ou download
+            const file = new File([blob], nomeArq, { type: 'image/png' });
             if (navigator.share) {
                 await navigator.share({
                     title: 'Relatório Cliente Max',
@@ -259,7 +271,7 @@ async function gerarRelatorioPNG() {
             } else {
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = `relatorio_barbearia_${dataRef}.png`;
+                link.download = nomeArq;
                 link.click();
             }
         }, 'image/png');

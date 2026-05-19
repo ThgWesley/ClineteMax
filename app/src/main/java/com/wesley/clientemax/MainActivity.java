@@ -2,24 +2,29 @@ package com.wesley.clientemax;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteStatement;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteStatement;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -33,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private SQLiteDatabase sqliteDb;
 
     private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int MANAGE_STORAGE_REQUEST_CODE = 101;
     private static final String URL_ONLINE = "https://thgwesley.github.io/ClineteMax/";
     private static final String URL_OFFLINE = "file:///android_asset/index.html";
     private static final String BACKUP_DIR =
@@ -42,32 +48,19 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         solicitarPermissoes();
         inicializarSQLite();
         configurarWebView();
     }
 
-    // ==========================================
-    // VERIFICA CONEXÃO COM INTERNET
-    // ==========================================
-    private boolean temInternet() {
-        try {
-            ConnectivityManager cm = (ConnectivityManager)
-                getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo info = cm.getActiveNetworkInfo();
-            return info != null && info.isConnected();
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    // ==========================================
-    // PERMISSÕES
-    // ==========================================
     private void solicitarPermissoes() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, MANAGE_STORAGE_REQUEST_CODE);
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -80,26 +73,37 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ==========================================
-    // SQLITE
-    // ==========================================
+    private boolean temPermissaoArmazenamento() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        }
+        return ContextCompat.checkSelfPermission(this,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean temInternet() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager)
+                getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo info = cm.getActiveNetworkInfo();
+            return info != null && info.isConnected();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void inicializarSQLite() {
         sqliteDb = openOrCreateDatabase("clientemax.db", MODE_PRIVATE, null);
         sqliteDb.execSQL(
             "CREATE TABLE IF NOT EXISTS snapshots (" +
             "id INTEGER PRIMARY KEY AUTOINCREMENT," +
             "dados TEXT NOT NULL," +
-            "gerado_em TEXT NOT NULL" +
-            ")"
+            "gerado_em TEXT NOT NULL)"
         );
     }
 
-    // ==========================================
-    // WEBVIEW
-    // ==========================================
     private void configurarWebView() {
         webView = findViewById(R.id.webview);
-
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -108,26 +112,20 @@ public class MainActivity extends AppCompatActivity {
         settings.setDatabaseEnabled(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-
         webView.addJavascriptInterface(new ClienteMaxInterface(), "AndroidBridge");
-
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return false;
             }
-
-            // Se falhar ao carregar online, cai pro offline
             @Override
             public void onReceivedError(WebView view, int errorCode,
                     String description, String failingUrl) {
-                if (failingUrl.equals(URL_ONLINE)) {
+                if (failingUrl != null && failingUrl.equals(URL_ONLINE)) {
                     view.loadUrl(URL_OFFLINE);
                 }
             }
         });
-
-        // Carrega online se tiver internet, offline se não tiver
         if (temInternet()) {
             webView.loadUrl(URL_ONLINE);
         } else {
@@ -135,15 +133,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ==========================================
-    // INTERFACE JS ↔ JAVA
-    // ==========================================
     public class ClienteMaxInterface {
 
         @JavascriptInterface
         public void salvarBackup(String dadosJson) {
             salvarNoSQLite(dadosJson);
-            salvarArquivoJson(dadosJson);
+            if (temPermissaoArmazenamento()) {
+                salvarArquivoJson(dadosJson);
+            }
         }
 
         @JavascriptInterface
@@ -162,38 +159,70 @@ public class MainActivity extends AppCompatActivity {
             }
             return null;
         }
+
+        @JavascriptInterface
+        public void compartilharImagem(String base64Data, String nomeArquivo) {
+            try {
+                String base64 = base64Data.contains(",")
+                    ? base64Data.split(",")[1] : base64Data;
+                byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+
+                File cacheDir = new File(getCacheDir(), "relatorios");
+                if (!cacheDir.exists()) cacheDir.mkdirs();
+                File imgFile = new File(cacheDir, nomeArquivo);
+
+                FileOutputStream fos = new FileOutputStream(imgFile);
+                fos.write(bytes);
+                fos.flush();
+                fos.close();
+
+                Uri uri = FileProvider.getUriForFile(
+                    MainActivity.this,
+                    getPackageName() + ".provider",
+                    imgFile
+                );
+
+                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                shareIntent.setType("image/png");
+                shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, "Relatório Cliente Max");
+                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() ->
+                    startActivity(Intent.createChooser(shareIntent, "Compartilhar relatório")));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @JavascriptInterface
+        public boolean temPermissao() {
+            return temPermissaoArmazenamento();
+        }
+
+        @JavascriptInterface
+        public void solicitarPermissao() {
+            runOnUiThread(() -> solicitarPermissoes());
+        }
     }
 
-    // ==========================================
-    // SALVAR NO SQLITE (máx 3 registros)
-    // ==========================================
     private void salvarNoSQLite(String dadosJson) {
         try {
             String agora = new SimpleDateFormat(
                 "yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-
             SQLiteStatement stmt = sqliteDb.compileStatement(
                 "INSERT INTO snapshots (dados, gerado_em) VALUES (?, ?)");
             stmt.bindString(1, dadosJson);
             stmt.bindString(2, agora);
             stmt.executeInsert();
             stmt.close();
-
             sqliteDb.execSQL(
                 "DELETE FROM snapshots WHERE id NOT IN " +
-                "(SELECT id FROM snapshots ORDER BY id DESC LIMIT 3)"
-            );
+                "(SELECT id FROM snapshots ORDER BY id DESC LIMIT 3)");
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // ==========================================
-    // SALVAR .JSON
-    // - backup_atual.json  → substituído a cada save (tempo real)
-    // - backup_YYYY-MM-DD.json → snapshot diário (1 por dia)
-    // - Mantém só os 2 snapshots diários mais recentes
-    // ==========================================
     private void salvarArquivoJson(String dadosJson) {
         try {
             File dir = new File(BACKUP_DIR);
@@ -206,18 +235,13 @@ public class MainActivity extends AppCompatActivity {
 
             String payload = "{\"versao\":\"barber_v6\",\"geradoEm\":\"" + agora + "\",\"dados\":" + dadosJson + "}";
 
-            // 1. Substitui sempre o arquivo atual (tempo real)
             escreverArquivo(new File(dir, "backup_atual.json"), payload);
 
-            // 2. Snapshot diário — só cria se ainda não existe hoje
             File snapDia = new File(dir, "backup_" + hoje + ".json");
             if (!snapDia.exists()) {
                 escreverArquivo(snapDia, payload);
-
-                // Mantém só os 2 snapshots diários mais recentes
                 File[] snapshots = dir.listFiles(f ->
                     f.getName().startsWith("backup_2") && f.getName().endsWith(".json"));
-
                 if (snapshots != null && snapshots.length > 2) {
                     Arrays.sort(snapshots, Comparator.comparingLong(File::lastModified));
                     for (int i = 0; i < snapshots.length - 2; i++) {
@@ -249,8 +273,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (sqliteDb != null && sqliteDb.isOpen()) {
-            sqliteDb.close();
-        }
+        if (sqliteDb != null && sqliteDb.isOpen()) sqliteDb.close();
     }
 }
