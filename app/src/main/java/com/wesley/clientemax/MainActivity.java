@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
     private static final int MANAGE_STORAGE_REQUEST_CODE = 101;
+    private static final int PICK_FILE_REQUEST_CODE = 102;
     private static final String URL_ONLINE = "https://thgwesley.github.io/ClineteMax/";
     private static final String URL_OFFLINE = "file:///android_asset/index.html";
     private static final String BACKUP_DIR =
@@ -203,6 +204,50 @@ public class MainActivity extends AppCompatActivity {
         public void solicitarPermissao() {
             runOnUiThread(() -> solicitarPermissoes());
         }
+
+        // Exportar backup JSON — salva em Downloads/ e compartilha
+        @JavascriptInterface
+        public void exportarBackupJson(String dadosJson, String nomeArquivo) {
+            try {
+                File dir = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS);
+                if (!dir.exists()) dir.mkdirs();
+
+                File arquivo = new File(dir, nomeArquivo);
+                FileWriter writer = new FileWriter(arquivo);
+                writer.write(dadosJson);
+                writer.flush();
+                writer.close();
+
+                Uri uri = FileProvider.getUriForFile(
+                    MainActivity.this,
+                    getPackageName() + ".provider",
+                    arquivo
+                );
+
+                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                shareIntent.setType("application/json");
+                shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, "Backup Cliente Max");
+                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() ->
+                    startActivity(Intent.createChooser(shareIntent, "Exportar backup")));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Abre seletor de arquivo nativo para importar backup
+        @JavascriptInterface
+        public void abrirSeletorArquivo() {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("application/json");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            runOnUiThread(() ->
+                startActivityForResult(
+                    Intent.createChooser(intent, "Selecionar backup"),
+                    PICK_FILE_REQUEST_CODE));
+        }
     }
 
     private void salvarNoSQLite(String dadosJson) {
@@ -259,6 +304,28 @@ public class MainActivity extends AppCompatActivity {
         writer.write(conteudo);
         writer.flush();
         writer.close();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PICK_FILE_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            try {
+                Uri uri = data.getData();
+                java.io.InputStream is = getContentResolver().openInputStream(uri);
+                byte[] buffer = new byte[is.available()];
+                is.read(buffer);
+                is.close();
+                String conteudo = new String(buffer, "UTF-8");
+                // Envia conteúdo pro JS
+                final String js = "importarBackupDoAndroid(" +
+                    conteudo.replace("\\", "\\\\").replace("'", "\\'") + ")";
+                runOnUiThread(() -> webView.evaluateJavascript(js, null));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override

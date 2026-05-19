@@ -289,6 +289,13 @@ async function exportarBackup() {
     const nomeArquivo = `backup_topindica_${dataRef}.json`;
     const dadosStr = JSON.stringify(db, null, 2);
 
+    // APK: salva via Java e compartilha
+    if (window.AndroidBridge && typeof window.AndroidBridge.exportarBackupJson === 'function') {
+        window.AndroidBridge.exportarBackupJson(dadosStr, nomeArquivo);
+        return;
+    }
+
+    // Navegador: navigator.share ou download
     if (navigator.share) {
         try {
             const arquivo = new File([dadosStr], nomeArquivo, { type: 'application/json' });
@@ -314,12 +321,34 @@ async function exportarBackup() {
 function importarBackup(e) {
     const file = e.target.files[0];
     if (!file) return;
+    _processarArquivoBackup(file);
+}
+
+// Chamado pelo AndroidBridge após o usuário selecionar o arquivo
+function importarBackupDoAndroid(conteudo) {
+    try {
+        const dados = JSON.parse(conteudo);
+        if (dados.atendimentos || dados.clientes) {
+            if (confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
+                db = dados;
+                salvarDB();
+                location.reload();
+            }
+        } else {
+            alert("Arquivo de backup inválido.");
+        }
+    } catch (err) {
+        alert("Erro ao ler o arquivo.");
+    }
+}
+
+function _processarArquivoBackup(file) {
     const reader = new FileReader();
     reader.onload = function(ev) {
         try {
             const dados = JSON.parse(ev.target.result);
             if (dados.atendimentos || dados.clientes) {
-                if(confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
+                if (confirm("ATENÇÃO: Isso irá substituir os dados atuais pelos do backup. Continuar?")) {
                     db = dados;
                     salvarDB();
                     location.reload();
@@ -332,4 +361,15 @@ function importarBackup(e) {
         }
     };
     reader.readAsText(file);
+}
+
+// Botão importar — detecta APK ou navegador
+function abrirImportarBackup() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.abrirSeletorArquivo === 'function') {
+        window.AndroidBridge.abrirSeletorArquivo();
+        return;
+    }
+    // Navegador: clica no input file normalmente
+    const input = document.getElementById('input-backup') || document.querySelector('input[type=file]');
+    if (input) input.click();
 }
