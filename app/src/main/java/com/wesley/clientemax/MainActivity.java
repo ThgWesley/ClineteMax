@@ -12,7 +12,11 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.content.Intent;
 import android.net.Uri;
+import android.util.Base64;
+import android.widget.Toast;
 import android.webkit.JavascriptInterface;
+import androidx.core.content.FileProvider;
+import java.io.FileOutputStream;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -179,6 +183,74 @@ public class MainActivity extends AppCompatActivity {
         public void salvarBackup(String dadosJson) {
             salvarNoSQLite(dadosJson);
             salvarArquivoJson(dadosJson);
+        }
+
+        // Exporta backup JSON via compartilhamento nativo
+        @JavascriptInterface
+        public void exportarBackupJson(String dadosJson, String nomeArquivo) {
+            try {
+                File cacheDir = new File(getCacheDir(), "backups");
+                if (!cacheDir.exists()) cacheDir.mkdirs();
+
+                File arquivo = new File(cacheDir, nomeArquivo);
+                FileOutputStream fos = new FileOutputStream(arquivo);
+                fos.write(dadosJson.getBytes("UTF-8"));
+                fos.flush();
+                fos.close();
+
+                Uri uri = FileProvider.getUriForFile(
+                    MainActivity.this, getPackageName() + ".provider", arquivo);
+
+                Intent intent = new Intent(Intent.ACTION_SEND);
+                intent.setType("application/json");
+                intent.putExtra(Intent.EXTRA_STREAM, uri);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                runOnUiThread(() ->
+                    startActivity(Intent.createChooser(intent, "Exportar Backup")));
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() ->
+                    Toast.makeText(MainActivity.this, "Erro ao exportar backup.", Toast.LENGTH_SHORT).show());
+            }
+        }
+
+        // Compartilha relatório PNG (recebe base64 do canvas)
+        @JavascriptInterface
+        public void compartilharImagem(String base64Data, String nomeArquivo) {
+            try {
+                String base64 = base64Data.contains(",")
+                    ? base64Data.substring(base64Data.indexOf(",") + 1)
+                    : base64Data;
+
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+
+                File cacheDir = new File(getCacheDir(), "relatorios");
+                if (!cacheDir.exists()) cacheDir.mkdirs();
+
+                File imageFile = new File(cacheDir, nomeArquivo);
+                FileOutputStream fos = new FileOutputStream(imageFile);
+                fos.write(bytes);
+                fos.flush();
+                fos.close();
+
+                Uri uri = FileProvider.getUriForFile(
+                    MainActivity.this, getPackageName() + ".provider", imageFile);
+
+                Intent intent = new Intent(Intent.ACTION_SEND);
+                intent.setType("image/png");
+                intent.putExtra(Intent.EXTRA_STREAM, uri);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                runOnUiThread(() ->
+                    startActivity(Intent.createChooser(intent, "Compartilhar Relatório")));
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() ->
+                    Toast.makeText(MainActivity.this, "Erro ao compartilhar relatório.", Toast.LENGTH_SHORT).show());
+            }
         }
 
         @JavascriptInterface
