@@ -2,36 +2,31 @@ package com.wesley.clientemax;
 
 import android.Manifest;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.util.Base64;
+import android.content.Intent;
+import android.net.Uri;
 import android.webkit.JavascriptInterface;
-import android.webkit.MimeTypeMap;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
-import java.io.InputStream;
-import java.io.ByteArrayOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -42,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private SQLiteDatabase sqliteDb;
+    private ValueCallback<Uri[]> fileChooserCallback;
 
     private static final int PERMISSION_REQUEST_CODE = 100;
     private static final String URL_ONLINE = "https://thgwesley.github.io/ClineteMax/";
@@ -49,40 +45,20 @@ public class MainActivity extends AppCompatActivity {
     private static final String BACKUP_DIR =
         Environment.getExternalStorageDirectory() + "/Cliente Max/backup";
 
-    // Launcher para selecionar arquivo de backup (importar)
-    private ActivityResultLauncher<String[]> seletorArquivo;
+    private ActivityResultLauncher<String[]> filePickerLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Registra o seletor de arquivo ANTES de usar
-        seletorArquivo = registerForActivityResult(
+        // Registra o launcher do seletor de arquivos (deve ser antes de configurarWebView)
+        filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(),
             uri -> {
-                if (uri == null) return;
-                try {
-                    InputStream is = getContentResolver().openInputStream(uri);
-                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                    byte[] chunk = new byte[4096];
-                    int read;
-                    while ((read = is.read(chunk)) != -1) {
-                        buffer.write(chunk, 0, read);
-                    }
-                    is.close();
-                    String conteudo = buffer.toString("UTF-8");
-                    // Envia conteúdo para o JS
-                    String escaped = conteudo.replace("\\", "\\\\").replace("'", "\\'")
-                                             .replace("\n", "\\n").replace("\r", "");
-                    runOnUiThread(() ->
-                        webView.evaluateJavascript(
-                            "importarBackupDoAndroid('" + escaped + "')", null));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    runOnUiThread(() ->
-                        Toast.makeText(this, "Erro ao ler o arquivo.", Toast.LENGTH_SHORT).show());
-                }
+                if (fileChooserCallback == null) return;
+                fileChooserCallback.onReceiveValue(uri != null ? new Uri[]{uri} : new Uri[0]);
+                fileChooserCallback = null;
             }
         );
 
@@ -160,6 +136,7 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
 
+            // Se falhar ao carregar online, cai pro offline
             @Override
             public void onReceivedError(WebView view, int errorCode,
                     String description, String failingUrl) {
@@ -169,6 +146,23 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // WebChromeClient: necessário para input[type=file] funcionar no WebView
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView,
+                    ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                // Cancela qualquer callback pendente
+                if (fileChooserCallback != null) {
+                    fileChooserCallback.onReceiveValue(new Uri[0]);
+                }
+                fileChooserCallback = callback;
+                filePickerLauncher.launch(new String[]{"application/json", "*/*"});
+                return true;
+            }
+        });
+
+        // Carrega online se tiver internet, offline se não tiver
         if (temInternet()) {
             webView.loadUrl(URL_ONLINE);
         } else {
@@ -181,14 +175,12 @@ public class MainActivity extends AppCompatActivity {
     // ==========================================
     public class ClienteMaxInterface {
 
-        // Backup automático (SQLite + arquivo)
         @JavascriptInterface
         public void salvarBackup(String dadosJson) {
             salvarNoSQLite(dadosJson);
             salvarArquivoJson(dadosJson);
         }
 
-        // Recupera último backup do SQLite
         @JavascriptInterface
         public String recuperarUltimoSQLite() {
             try {
@@ -204,99 +196,6 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
             return null;
-        }
-
-        // ── EXPORTAR BACKUP ──────────────────────────────────────
-        // Salva o JSON em Downloads e abre compartilhamento
-        @JavascriptInterface
-        public void exportarBackupJson(String dadosJson, String nomeArquivo) {
-            try {
-                // Salva também no diretório interno de backup
-                salvarArquivoJson(dadosJson);
-
-                // Salva em Downloads para compartilhar
-                File downloads = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS);
-                if (!downloads.exists()) downloads.mkdirs();
-
-                File arquivo = new File(downloads, nomeArquivo);
-                FileWriter writer = new FileWriter(arquivo);
-                writer.write(dadosJson);
-                writer.flush();
-                writer.close();
-
-                // Compartilha via Intent (abre gerenciador/apps)
-                Uri uri = FileProvider.getUriForFile(
-                    MainActivity.this,
-                    getPackageName() + ".provider",
-                    arquivo);
-
-                Intent intent = new Intent(Intent.ACTION_SEND);
-                intent.setType("application/json");
-                intent.putExtra(Intent.EXTRA_STREAM, uri);
-                intent.putExtra(Intent.EXTRA_SUBJECT, "Backup Cliente Max");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-                runOnUiThread(() ->
-                    startActivity(Intent.createChooser(intent, "Exportar Backup")));
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(() ->
-                    Toast.makeText(MainActivity.this,
-                        "Erro ao exportar backup.", Toast.LENGTH_SHORT).show());
-            }
-        }
-
-        // ── ABRIR SELETOR DE ARQUIVO (IMPORTAR) ─────────────────
-        @JavascriptInterface
-        public void abrirSeletorArquivo() {
-            runOnUiThread(() ->
-                seletorArquivo.launch(new String[]{"application/json", "*/*"}));
-        }
-
-        // ── COMPARTILHAR RELATÓRIO (PNG em Base64) ───────────────
-        @JavascriptInterface
-        public void compartilharImagem(String base64Data, String nomeArquivo) {
-            try {
-                // Remove prefixo data:image/png;base64, se existir
-                String base64 = base64Data;
-                if (base64.contains(",")) {
-                    base64 = base64.substring(base64.indexOf(",") + 1);
-                }
-
-                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
-
-                // Salva em cache interno (não precisa de permissão)
-                File cacheDir = new File(getCacheDir(), "relatorios");
-                if (!cacheDir.exists()) cacheDir.mkdirs();
-
-                File imageFile = new File(cacheDir, nomeArquivo);
-                FileOutputStream fos = new FileOutputStream(imageFile);
-                fos.write(bytes);
-                fos.flush();
-                fos.close();
-
-                Uri uri = FileProvider.getUriForFile(
-                    MainActivity.this,
-                    getPackageName() + ".provider",
-                    imageFile);
-
-                Intent intent = new Intent(Intent.ACTION_SEND);
-                intent.setType("image/png");
-                intent.putExtra(Intent.EXTRA_STREAM, uri);
-                intent.putExtra(Intent.EXTRA_SUBJECT, "Relatório Cliente Max");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-                runOnUiThread(() ->
-                    startActivity(Intent.createChooser(intent, "Compartilhar Relatório")));
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(() ->
-                    Toast.makeText(MainActivity.this,
-                        "Erro ao compartilhar relatório.", Toast.LENGTH_SHORT).show());
-            }
         }
     }
 
