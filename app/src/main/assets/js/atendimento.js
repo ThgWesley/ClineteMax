@@ -86,11 +86,10 @@ function abrirModal(ehNovo = true) {
                     <i class="fas fa-user"></i>
                 </div>
                 <div class="flex-1 relative">
-                    <input type="text" id="m-nome-sem" list="clientes-list" placeholder="Nome do Cliente" onkeyup="filtrarClientesDropdown(this.value)" onfocus="filtrarClientesDropdown(this.value)" class="font-black text-sm">
+                    <input type="text" id="m-nome-sem" autocomplete="off" placeholder="Nome do Cliente" onkeyup="filtrarClientesDropdown(this.value)" class="font-black text-sm">
                     <div id="dropdown-clientes" class="hidden"></div>
                 </div>
             </div>
-            <datalist id="clientes-list">${db.clientes.map(c => `<option value="${c.nome}">`).join('')}</datalist>
             
             <p class="text-[10px] font-black uppercase text-slate-400 mb-2">Serviços</p>
             <div class="grid grid-cols-2 gap-2">
