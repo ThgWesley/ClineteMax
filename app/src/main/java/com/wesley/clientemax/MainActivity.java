@@ -89,8 +89,23 @@ public class MainActivity extends AppCompatActivity {
     // PERMISSÕES
     // ==========================================
     private void solicitarPermissoes() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+: precisa de MANAGE_EXTERNAL_STORAGE via configurações do sistema
+            if (!Environment.isExternalStorageManager()) {
+                new android.app.AlertDialog.Builder(this)
+                    .setTitle("Permissão necessária")
+                    .setMessage("Para salvar backups automáticos em \"Cliente Max/backup\", permita o acesso a todos os arquivos nas configurações.")
+                    .setPositiveButton("Permitir", (dialog, which) -> {
+                        Intent intent = new Intent(
+                            android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    })
+                    .setNegativeButton("Agora não", null)
+                    .show();
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // Android 6-10: permissão normal de storage
             if (ContextCompat.checkSelfPermission(this,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
