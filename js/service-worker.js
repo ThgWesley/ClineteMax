@@ -7,6 +7,13 @@ const urlsToCache = [
   `${BASE_PATH}/css/style.css`,
   `${BASE_PATH}/js/app.js`,
   `${BASE_PATH}/js/utils.js`,
+  `${BASE_PATH}/js/database.js`,
+  `${BASE_PATH}/js/clientes.js`,
+  `${BASE_PATH}/js/atendimento.js`,
+  `${BASE_PATH}/js/agenda.js`,
+  `${BASE_PATH}/js/servicos.js`,
+  `${BASE_PATH}/js/produtos.js`,
+  `${BASE_PATH}/js/backup.js`,
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css',
@@ -50,22 +57,39 @@ self.addEventListener('fetch', event => {
     return;
   }
   
+  const url = event.request.url;
+  
+  // CSS e fonts: network-first, com fallback para cache
+  if (url.includes('.css') || url.includes('font-awesome') || url.includes('fonts')) {
+    event.respondWith(
+      fetch(event.request)
+      .then(response => {
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+  
+  // Padrão: cache-first
   event.respondWith(
     caches.match(event.request)
     .then(response => {
-      // Cache hit - retorna do cache
       if (response) {
         return response;
       }
       
-      // Cache miss - busca da rede
       return fetch(event.request).then(response => {
-        // Verifica se é uma resposta válida
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
         
-        // Clone a resposta para armazenar no cache
         var responseToCache = response.clone();
         caches.open(CACHE_NAME)
           .then(cache => {
@@ -76,7 +100,6 @@ self.addEventListener('fetch', event => {
       });
     })
     .catch(() => {
-      // Fallback offline
       if (event.request.mode === 'navigate') {
         return caches.match(`${BASE_PATH}/index.html`);
       }
